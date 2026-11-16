@@ -1,7 +1,7 @@
 {
-  "tunnelUp": false,
-  "publicUrl": null,
-  "at": 1794857373596,
+  "tunnelUp": true,
+  "publicUrl": "https://consideration-quick-culture-florists.trycloudflare.com",
+  "at": 1794857382274,
   "error": null,
-  "result": "Starting tunnel (attempt 1/8)…"
+  "result": "Tunnel started: https://consideration-quick-culture-florists.trycloudflare.com"
 }
