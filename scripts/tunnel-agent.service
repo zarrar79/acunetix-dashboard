@@ -1,0 +1,15 @@
+[Unit]
+Description=Daybreak Acunetix tunnel agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/slytherin/acunetix-dashboard
+EnvironmentFile=/home/slytherin/acunetix-dashboard/.env.tunnel-agent
+ExecStart=/home/slytherin/.nvm/versions/node/v22.23.5/bin/node /home/slytherin/acunetix-dashboard/scripts/tunnel-agent.mjs
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

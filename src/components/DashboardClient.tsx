@@ -19,6 +19,7 @@ import {
   threatLabel,
 } from "@/lib/labels";
 import { AddTargetForm } from "@/components/AddTargetForm";
+import { TunnelControl } from "@/components/TunnelControl";
 
 type DashboardPayload = {
   summary: {
@@ -265,8 +266,8 @@ export function DashboardClient() {
 
       {tunnelDown ? (
         <div className="rise rounded-xl border border-[color-mix(in_srgb,var(--warn)_45%,var(--line))] bg-[color-mix(in_srgb,var(--warn)_12%,var(--panel))] px-3 py-2 text-sm text-[var(--warn)]">
-          Acunetix tunnel looks down. Keep Acunetix and cloudflared running on
-          your PC.
+          Acunetix tunnel looks down. Use Tunnel controls below, or keep
+          Acunetix and cloudflared running on your PC.
         </div>
       ) : null}
 
@@ -275,6 +276,8 @@ export function DashboardClient() {
           {error}
         </div>
       ) : null}
+
+      <TunnelControl />
 
       <section className="rise toolbar-card grid grid-cols-1 gap-2 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-2 backdrop-blur md:grid-cols-[minmax(0,1fr)_14rem] md:items-center">
         <AddTargetForm onCreated={() => void load(true)} />

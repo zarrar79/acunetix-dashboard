@@ -99,14 +99,23 @@ export {
   criticalityLabel,
 } from "@/lib/labels";
 
-function getConfig() {
-  const rawBase = process.env.ACUNETIX_BASE_URL;
+async function getConfig() {
   const apiKey = process.env.ACUNETIX_API_KEY;
-
-  if (!rawBase || !apiKey) {
+  if (!apiKey) {
     throw new AppError(
       "CONFIG",
-      "Scanner configuration is missing. Set ACUNETIX_BASE_URL and ACUNETIX_API_KEY.",
+      "Scanner configuration is missing. Set ACUNETIX_API_KEY.",
+    );
+  }
+
+  const { getRuntimeTunnelUrl } = await import("@/lib/tunnel-store");
+  const runtimeUrl = await getRuntimeTunnelUrl();
+  const rawBase = runtimeUrl || process.env.ACUNETIX_BASE_URL;
+
+  if (!rawBase) {
+    throw new AppError(
+      "CONFIG",
+      "Scanner URL missing. Start the tunnel from the dashboard or set ACUNETIX_BASE_URL.",
     );
   }
 
@@ -130,7 +139,7 @@ export async function acunetixFetch<T>(
   init?: RequestInit,
 ): Promise<T> {
   const traceId = createTraceId();
-  const { baseUrl, apiKey } = getConfig();
+  const { baseUrl, apiKey } = await getConfig();
   const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
   let response: Response;

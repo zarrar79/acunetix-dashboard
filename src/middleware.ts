@@ -18,7 +18,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/api/scans") ||
     pathname === "/api/targets" ||
-    pathname.startsWith("/api/targets/")
+    pathname.startsWith("/api/targets/") ||
+    pathname === "/api/tunnel/status" ||
+    pathname === "/api/tunnel/control"
   ) {
     if (!authed) {
       if (pathname.startsWith("/api/")) {
@@ -50,6 +52,8 @@ export const config = {
     "/api/targets/:path*",
     "/api/auth/login",
     "/api/health",
+    "/api/tunnel/status",
+    "/api/tunnel/control",
     "/login",
     "/",
   ],

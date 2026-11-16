@@ -18,7 +18,7 @@ async function hmacHex(secret: string, payload: string) {
     .join("");
 }
 
-function timingSafeEqualHex(a: string, b: string) {
+export function timingSafeEqualHex(a: string, b: string) {
   if (a.length !== b.length) return false;
   let mismatch = 0;
   for (let i = 0; i < a.length; i += 1) {
