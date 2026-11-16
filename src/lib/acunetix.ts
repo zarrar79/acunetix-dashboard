@@ -125,11 +125,112 @@ export async function acunetixFetch<T>(
     );
   }
 
-  return response.json() as Promise<T>;
+  if (
+    response.status === 204 ||
+    response.headers.get("content-length") === "0"
+  ) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
+
+export const FULL_SCAN_PROFILE_ID = "11111111-1111-1111-1111-111111111111";
+export const COMPREHENSIVE_NEW_REPORT_ID =
+  "11111111-1111-1111-1111-111111111126";
+export const BUSINESS_CRITICALITY_CRITICAL = 30;
+
+export type CreatedTarget = {
+  target_id: string;
+  address: string;
+  criticality: number;
+  description?: string;
+  fqdn?: string;
+};
 
 export async function listScans(limit = 50): Promise<ScansResponse> {
   return acunetixFetch<ScansResponse>(`/api/v1/scans?l=${limit}`);
+}
+
+export async function createTargetWithDefaults(address: string) {
+  const trimmed = address.trim();
+  if (!trimmed) {
+    throw new Error("Address is required");
+  }
+
+  const created = await acunetixFetch<{ targets: CreatedTarget[] }>(
+    "/api/v1/targets/add",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targets: [
+          {
+            address: trimmed,
+            description: "",
+            type: "default",
+            criticality: BUSINESS_CRITICALITY_CRITICAL,
+          },
+        ],
+      }),
+    },
+  );
+
+  const target = created.targets?.[0];
+  if (!target?.target_id) {
+    throw new Error("Acunetix did not return a target id");
+  }
+
+  // Scan speed: slow, default profile: Full Scan
+  await acunetixFetch(`/api/v1/targets/${target.target_id}/configuration`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      scan_speed: "slow",
+      default_scanning_profile_id: FULL_SCAN_PROFILE_ID,
+    }),
+  });
+
+  // Continuous scanning: enabled
+  await acunetixFetch(`/api/v1/targets/${target.target_id}/continuous_scan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled: true }),
+  });
+
+  // Start scan using Comprehensive (new) report
+  const scan = await acunetixFetch<{ scan_id: string }>("/api/v1/scans", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      target_id: target.target_id,
+      profile_id: FULL_SCAN_PROFILE_ID,
+      report_template_id: COMPREHENSIVE_NEW_REPORT_ID,
+      schedule: {
+        disable: false,
+        start_date: null,
+        time_sensitive: false,
+      },
+    }),
+  });
+
+  return {
+    target,
+    scanId: scan.scan_id,
+    settings: {
+      address: trimmed,
+      scanSpeed: "slow",
+      businessCriticality: "Critical",
+      continuousScanning: true,
+      report: "Comprehensive (new)",
+      profile: "Full Scan",
+    },
+  };
 }
 
 export async function getScan(scanId: string): Promise<AcunetixScan> {

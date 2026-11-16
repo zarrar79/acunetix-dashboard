@@ -8,7 +8,8 @@ export async function middleware(request: NextRequest) {
 
   if (
     pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/api/scans")
+    pathname.startsWith("/api/scans") ||
+    pathname.startsWith("/api/targets")
   ) {
     if (!authed) {
       if (pathname.startsWith("/api/")) {
@@ -28,5 +29,12 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/scans", "/api/scans/:path*", "/login"],
+  matcher: [
+    "/dashboard/:path*",
+    "/api/scans",
+    "/api/scans/:path*",
+    "/api/targets",
+    "/api/targets/:path*",
+    "/login",
+  ],
 };

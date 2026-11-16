@@ -12,6 +12,7 @@ import {
   severityLabel,
   threatLabel,
 } from "@/lib/labels";
+import { AddTargetForm } from "@/components/AddTargetForm";
 
 type DashboardPayload = {
   summary: {
@@ -185,6 +186,8 @@ export function DashboardClient() {
           {error}
         </div>
       ) : null}
+
+      <AddTargetForm onCreated={() => void load(true)} />
 
       {data ? (
         <>
