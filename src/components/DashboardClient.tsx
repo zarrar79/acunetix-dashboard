@@ -117,7 +117,6 @@ export function DashboardClient() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [tunnelDown, setTunnelDown] = useState(false);
   const PAGE_SIZE = 15;
 
   const load = useCallback(
@@ -161,26 +160,6 @@ export function DashboardClient() {
     const id = window.setInterval(() => void load(true), 20000);
     return () => window.clearInterval(id);
   }, [load]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function checkHealth() {
-      try {
-        const response = await fetch("/api/health", { cache: "no-store" });
-        if (!cancelled) setTunnelDown(!response.ok);
-      } catch {
-        if (!cancelled) setTunnelDown(true);
-      }
-    }
-
-    void checkHealth();
-    const id = window.setInterval(() => void checkHealth(), 60000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, []);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
