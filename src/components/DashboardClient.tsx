@@ -92,6 +92,7 @@ export function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(
     async (silent = false) => {
@@ -134,12 +135,31 @@ export function DashboardClient() {
     router.refresh();
   }
 
+  const filteredScans = useMemo(() => {
+    const scans = data?.scans ?? [];
+    const query = search.trim().toLowerCase();
+    if (!query) return scans;
+    return scans.filter((scan) => {
+      const haystack = [
+        scan.target?.address,
+        scan.profile_name,
+        scan.current_session?.status,
+        threatLabel(scan.current_session?.threat),
+        scan.scan_id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [data, search]);
+
   const runningScans = useMemo(
     () =>
-      (data?.scans ?? []).filter((scan) =>
+      filteredScans.filter((scan) =>
         RUNNING.has(scan.current_session?.status?.toLowerCase?.() ?? ""),
       ),
-    [data],
+    [filteredScans],
   );
 
   return (
@@ -187,7 +207,19 @@ export function DashboardClient() {
         </div>
       ) : null}
 
-      <AddTargetForm onCreated={() => void load(true)} />
+      <div className="rise flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <AddTargetForm onCreated={() => void load(true)} />
+        <div className="w-full max-w-md">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search scanned targets…"
+            aria-label="Search scanned targets"
+            className="w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] outline-none backdrop-blur transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+          />
+        </div>
+      </div>
 
       {data ? (
         <>
@@ -241,24 +273,36 @@ export function DashboardClient() {
             <div className="flex items-end justify-between gap-3">
               <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
                 All scans
+                {search.trim() ? (
+                  <span className="ml-2 text-sm font-normal text-[var(--muted)]">
+                    ({filteredScans.length} match
+                    {filteredScans.length === 1 ? "" : "es"})
+                  </span>
+                ) : null}
               </h2>
               <p className="text-xs text-[var(--muted)]">
                 Updated {formatDate(data.fetchedAt)}
               </p>
             </div>
             <div className="flex flex-col gap-3">
-              {data.scans.map((scan) => (
-                <ScanRow
-                  key={scan.scan_id}
-                  scan={scan}
-                  expanded={expandedId === scan.scan_id}
-                  onToggle={() =>
-                    setExpandedId((current) =>
-                      current === scan.scan_id ? null : scan.scan_id,
-                    )
-                  }
-                />
-              ))}
+              {filteredScans.length === 0 ? (
+                <p className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 text-sm text-[var(--muted)]">
+                  No scanned targets match “{search.trim()}”.
+                </p>
+              ) : (
+                filteredScans.map((scan) => (
+                  <ScanRow
+                    key={scan.scan_id}
+                    scan={scan}
+                    expanded={expandedId === scan.scan_id}
+                    onToggle={() =>
+                      setExpandedId((current) =>
+                        current === scan.scan_id ? null : scan.scan_id,
+                      )
+                    }
+                  />
+                ))
+              )}
             </div>
           </section>
         </>

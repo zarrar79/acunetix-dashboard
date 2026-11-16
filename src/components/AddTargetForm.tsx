@@ -36,7 +36,7 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
         return;
       }
 
-      setSuccess(`Target added: ${payload.target?.address || address}`);
+      setSuccess(`Added ${payload.target?.address || address}`);
       setAddress("");
       onCreated?.();
     } catch {
@@ -47,42 +47,34 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
   }
 
   return (
-    <section className="rise rise-delay-1 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 backdrop-blur sm:p-5">
-      <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-        Add target
-      </h2>
-
-      <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4">
-        <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
-          Address
-          <input
-            required
-            value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            placeholder="https://example.com"
-            className="rounded-xl border border-[var(--line)] bg-white/80 px-4 py-3 text-base text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
-          />
-        </label>
-
-        {error ? (
-          <p className="rounded-lg bg-[#fdecea] px-3 py-2 text-sm text-[var(--danger)]">
-            {error}
-          </p>
-        ) : null}
-        {success ? (
-          <p className="rounded-lg bg-[#e8f6ee] px-3 py-2 text-sm text-[var(--ok)]">
-            {success}
-          </p>
-        ) : null}
-
+    <section className="rise max-w-xl rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-3 backdrop-blur">
+      <form
+        onSubmit={onSubmit}
+        className="flex flex-col gap-2 sm:flex-row sm:items-center"
+      >
+        <input
+          required
+          value={address}
+          onChange={(event) => setAddress(event.target.value)}
+          placeholder="Add target address"
+          aria-label="Address"
+          className="min-w-0 flex-1 rounded-lg border border-[var(--line)] bg-white/80 px-3 py-2 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+        />
         <button
           type="submit"
           disabled={loading || !address.trim()}
-          className="rounded-xl bg-[var(--accent)] px-4 py-3 text-base font-semibold text-white transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Adding target…" : "Add target"}
+          {loading ? "Adding…" : "Add"}
         </button>
       </form>
+
+      {error ? (
+        <p className="mt-2 text-xs text-[var(--danger)]">{error}</p>
+      ) : null}
+      {success ? (
+        <p className="mt-2 text-xs text-[var(--ok)]">{success}</p>
+      ) : null}
     </section>
   );
 }
