@@ -100,16 +100,44 @@ async function api(path, init = {}) {
   return json;
 }
 
+function readLatestUrl() {
+  try {
+    const { readFileSync } = require("node:fs");
+    const text = readFileSync(CF_LOG, "utf8");
+    const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/gi);
+    if (match?.length) return match[match.length - 1];
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function cloudflaredRunning() {
+  try {
+    const { execFileSync } = require("node:child_process");
+    execFileSync("pgrep", ["-f", "cloudflared tunnel --url"], {
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function tunnelUp() {
-  return Boolean(cloudflaredProc && cloudflaredProc.exitCode === null);
+  if (cloudflaredProc && cloudflaredProc.exitCode === null) return true;
+  return cloudflaredRunning();
 }
 
 async function heartbeat(extra = {}) {
+  const up = tunnelUp();
+  if (up && !publicUrl) publicUrl = readLatestUrl();
+  if (!up) publicUrl = null;
   await api("/api/tunnel/agent/heartbeat", {
     method: "POST",
     body: JSON.stringify({
-      tunnelUp: tunnelUp(),
-      publicUrl: tunnelUp() ? publicUrl : null,
+      tunnelUp: up,
+      publicUrl: up ? publicUrl : null,
       error: lastError,
       result: lastResult,
       ...extra,
