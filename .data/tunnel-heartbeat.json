@@ -1,7 +1,7 @@
 {
-  "tunnelUp": false,
-  "publicUrl": null,
-  "at": 1794857229304,
+  "tunnelUp": true,
+  "publicUrl": "https://convinced-rapidly-palmer-ladies.trycloudflare.com",
+  "at": 1794857233498,
   "error": null,
-  "result": "Tunnel stopped. Public URL is offline until Start (new URL next time)."
+  "result": null
 }
