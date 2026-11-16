@@ -13,8 +13,13 @@
  *   ACUNETIX_ORIGIN      default: https://127.0.0.1:3443
  *   AGENT_LOG            default: /tmp/daybreak-tunnel-agent.log
  */
-import { spawn, execFile } from "node:child_process";
-import { createWriteStream, writeFileSync, mkdirSync } from "node:fs";
+import { spawn, execFile, execFileSync } from "node:child_process";
+import {
+  createWriteStream,
+  writeFileSync,
+  mkdirSync,
+  readFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -102,7 +107,6 @@ async function api(path, init = {}) {
 
 function readLatestUrl() {
   try {
-    const { readFileSync } = require("node:fs");
     const text = readFileSync(CF_LOG, "utf8");
     const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/gi);
     if (match?.length) return match[match.length - 1];
@@ -114,7 +118,6 @@ function readLatestUrl() {
 
 function cloudflaredRunning() {
   try {
-    const { execFileSync } = require("node:child_process");
     execFileSync("pgrep", ["-f", "cloudflared tunnel --url"], {
       stdio: "ignore",
     });
