@@ -1,3 +1,10 @@
+import {
+  AppError,
+  createTraceId,
+  mapAcunetixHttpError,
+  mapFetchFailure,
+} from "@/lib/errors";
+
 export type SeverityCounts = {
   critical: number;
   high: number;
@@ -93,8 +100,9 @@ function getConfig() {
   const apiKey = process.env.ACUNETIX_API_KEY;
 
   if (!baseUrl || !apiKey) {
-    throw new Error(
-      "Missing ACUNETIX_BASE_URL or ACUNETIX_API_KEY environment variables.",
+    throw new AppError(
+      "CONFIG",
+      "Scanner configuration is missing. Set ACUNETIX_BASE_URL and ACUNETIX_API_KEY.",
     );
   }
 
@@ -105,24 +113,28 @@ export async function acunetixFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  const traceId = createTraceId();
   const { baseUrl, apiKey } = getConfig();
   const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      "X-Auth": apiKey,
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        "X-Auth": apiKey,
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw mapFetchFailure(error, traceId);
+  }
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new Error(
-      `Acunetix API ${response.status}: ${body || response.statusText}`,
-    );
+    throw mapAcunetixHttpError(response.status, body, path, traceId);
   }
 
   if (
@@ -137,7 +149,15 @@ export async function acunetixFetch<T>(
     return undefined as T;
   }
 
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch (error) {
+    throw new AppError(
+      "ACUNETIX",
+      "Acunetix returned an unreadable response.",
+      { traceId, details: { path, preview: text.slice(0, 200) }, cause: error },
+    );
+  }
 }
 
 export const FULL_SCAN_PROFILE_ID = "11111111-1111-1111-1111-111111111111";
@@ -182,7 +202,7 @@ function assertStrict(
   message: string,
 ): asserts condition {
   if (!condition) {
-    throw new Error(message);
+    throw new AppError("VALIDATION", message);
   }
 }
 
@@ -302,10 +322,39 @@ export function normalizeTargetAddresses(rawAddresses: string[]) {
   return addresses;
 }
 
+export async function retryFailedScan(scanId: string) {
+  if (!scanId) {
+    throw new AppError("VALIDATION", "Scan id is required to retry.");
+  }
+
+  const scan = await getScan(scanId);
+  const status = scan.current_session?.status?.toLowerCase?.() ?? "";
+  const failed = ["failed", "aborted", "error"].includes(status);
+
+  if (!failed) {
+    throw new AppError(
+      "CONFLICT",
+      `Only failed scans can be retried. Current status is "${status || "unknown"}".`,
+      { details: { scanId, status } },
+    );
+  }
+
+  if (!scan.target_id) {
+    throw new AppError(
+      "NOT_FOUND",
+      "This failed scan has no target id, so it cannot be retried.",
+      { details: { scanId } },
+    );
+  }
+
+  const address = scan.target?.address || scan.target_id;
+  return applyStrictDefaultsAndScan(scan.target_id, address);
+}
+
 export async function createTargetWithDefaults(address: string) {
   const [trimmed] = normalizeTargetAddresses([address]);
   if (!trimmed) {
-    throw new Error("Address is required");
+    throw new AppError("VALIDATION", "Address is required");
   }
 
   const created = await acunetixFetch<{ targets: CreatedTarget[] }>(
@@ -328,7 +377,7 @@ export async function createTargetWithDefaults(address: string) {
 
   const target = created.targets?.[0];
   if (!target?.target_id) {
-    throw new Error("Acunetix did not return a target id");
+    throw new AppError("ACUNETIX", "Acunetix did not return a target id");
   }
 
   return applyStrictDefaultsAndScan(target.target_id, trimmed);
@@ -345,10 +394,17 @@ export type BulkTargetResult = {
 export async function createTargetsBulk(rawAddresses: string[]) {
   const addresses = normalizeTargetAddresses(rawAddresses);
   if (addresses.length === 0) {
-    throw new Error("No valid URLs found in the upload");
+    throw new AppError(
+      "VALIDATION",
+      "No valid URLs found in the upload. Use one URL per line in a .txt or .csv file.",
+    );
   }
   if (addresses.length > 50) {
-    throw new Error("Bulk upload is limited to 50 URLs at a time");
+    throw new AppError(
+      "LIMIT_REACHED",
+      "Bulk upload is limited to 50 URLs at a time. Split the file and try again.",
+      { details: { provided: addresses.length, max: 50 } },
+    );
   }
 
   const created = await acunetixFetch<{ targets: CreatedTarget[] }>(

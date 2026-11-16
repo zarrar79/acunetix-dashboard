@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createTargetWithDefaults } from "@/lib/acunetix";
+import { AppError, toErrorResponse } from "@/lib/errors";
 
 export async function POST(request: Request) {
   try {
@@ -7,10 +8,7 @@ export async function POST(request: Request) {
     const address = body.address?.trim() ?? "";
 
     if (!address) {
-      return NextResponse.json(
-        { error: "Address is required" },
-        { status: 400 },
-      );
+      throw new AppError("VALIDATION", "Address is required");
     }
 
     const result = await createTargetWithDefaults(address);
@@ -20,8 +18,7 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to add target";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const mapped = toErrorResponse(error);
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

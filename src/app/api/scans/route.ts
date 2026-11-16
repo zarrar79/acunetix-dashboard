@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listScans, summarizeScans } from "@/lib/acunetix";
+import { toErrorResponse } from "@/lib/errors";
 
 export async function GET() {
   try {
@@ -12,8 +13,7 @@ export async function GET() {
       fetchedAt: new Date().toISOString(),
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to fetch scans";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const mapped = toErrorResponse(error);
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

@@ -24,8 +24,15 @@ export function LoginForm() {
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as {
           error?: string;
+          code?: string;
+          traceId?: string;
         } | null;
-        setError(data?.error || "Login failed");
+        const base = data?.error || "Login failed";
+        setError(
+          data?.code && data?.traceId
+            ? `${base} [${data.code} · ${data.traceId}]`
+            : base,
+        );
         setLoading(false);
         return;
       }
@@ -48,13 +55,13 @@ export function LoginForm() {
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="rounded-xl border border-[var(--line)] bg-white/80 px-4 py-3 text-base text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+          className="field px-4 py-3 text-base"
           placeholder="Dashboard password"
         />
       </label>
 
       {error ? (
-        <p className="rounded-lg bg-[#fdecea] px-3 py-2 text-sm text-[var(--danger)]">
+        <p className="rounded-lg border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel))] px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       ) : null}
@@ -62,7 +69,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="rounded-xl bg-[var(--accent)] px-4 py-3 text-base font-semibold text-white transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-xl bg-[var(--accent)] px-4 py-3 text-base font-semibold text-[#06261c] transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Signing in…" : "Open dashboard"}
       </button>

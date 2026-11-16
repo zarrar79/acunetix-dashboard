@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createTargetsBulk } from "@/lib/acunetix";
+import { AppError, toErrorResponse } from "@/lib/errors";
 
 export const maxDuration = 300;
 
@@ -19,9 +20,9 @@ export async function POST(request: Request) {
       const form = await request.formData();
       const file = form.get("file");
       if (!(file instanceof File)) {
-        return NextResponse.json(
-          { error: "Upload a .txt or .csv file of URLs" },
-          { status: 400 },
+        throw new AppError(
+          "VALIDATION",
+          "Upload a .txt or .csv file of URLs (one URL per line).",
         );
       }
       const text = await file.text();
@@ -38,8 +39,7 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to bulk-add targets";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const mapped = toErrorResponse(error);
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

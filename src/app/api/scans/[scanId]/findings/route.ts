@@ -6,6 +6,7 @@ import {
   summarizeFindings,
   type AcunetixVulnerabilityDetail,
 } from "@/lib/acunetix";
+import { AppError, toErrorResponse } from "@/lib/errors";
 
 type Params = { params: Promise<{ scanId: string }> };
 
@@ -20,9 +21,10 @@ export async function GET(request: Request, { params }: Params) {
     const sessionId = scan.current_session?.scan_session_id;
 
     if (!sessionId) {
-      return NextResponse.json(
-        { error: "Scan has no active session yet" },
-        { status: 404 },
+      throw new AppError(
+        "NOT_FOUND",
+        "This scan has no active session yet, so findings are unavailable.",
+        { details: { scanId } },
       );
     }
 
@@ -69,8 +71,7 @@ export async function GET(request: Request, { params }: Params) {
       fetchedAt: new Date().toISOString(),
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to fetch findings";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const mapped = toErrorResponse(error);
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

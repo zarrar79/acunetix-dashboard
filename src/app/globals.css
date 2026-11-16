@@ -1,18 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --bg0: #f3f6f4;
-  --bg1: #e7efea;
-  --ink: #14201b;
-  --muted: #5b6b64;
-  --line: #c9d7cf;
-  --panel: rgba(255, 255, 255, 0.72);
-  --accent: #0f8f6c;
-  --accent-deep: #0b6a51;
-  --warn: #c47a12;
-  --danger: #c0392b;
-  --ok: #1f7a4c;
-  --info: #2f6fed;
+  color-scheme: dark;
+  --bg0: #0b1220;
+  --bg1: #111a2b;
+  --ink: #e8eef8;
+  --muted: #9aa8bd;
+  --line: #2a3a52;
+  --panel: rgba(17, 26, 43, 0.82);
+  --panel-solid: #152238;
+  --input: #0f1a2c;
+  --accent: #2dd4a8;
+  --accent-deep: #19b890;
+  --warn: #f0b429;
+  --danger: #ff6b6b;
+  --ok: #3dd68c;
+  --info: #6ea8fe;
 }
 
 @theme inline {
@@ -37,8 +40,8 @@ body {
   color: var(--ink);
   font-family: var(--font-body), sans-serif;
   background:
-    radial-gradient(1200px 600px at 10% -10%, #d7efe4 0%, transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, #dce8f5 0%, transparent 50%),
+    radial-gradient(1000px 520px at 8% -10%, rgba(45, 212, 168, 0.14) 0%, transparent 55%),
+    radial-gradient(900px 480px at 100% 0%, rgba(110, 168, 254, 0.12) 0%, transparent 50%),
     linear-gradient(180deg, var(--bg0), var(--bg1));
   background-attachment: fixed;
 }
@@ -48,10 +51,10 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
+  opacity: 0.22;
   background-image:
-    linear-gradient(rgba(20, 32, 27, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(20, 32, 27, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(232, 238, 248, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 238, 248, 0.05) 1px, transparent 1px);
   background-size: 28px 28px;
   mask-image: radial-gradient(circle at 50% 20%, black, transparent 75%);
 }
@@ -112,4 +115,32 @@ a {
 
 .progress-fill {
   animation: bar-fill 0.7s ease both;
+}
+
+.field {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--input);
+  color: var(--ink);
+  border-radius: 0.75rem;
+  outline: none;
+}
+
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.toolbar-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .toolbar-card {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    align-items: stretch;
+  }
 }

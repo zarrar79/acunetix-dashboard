@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import type {
   AcunetixScan,
@@ -25,6 +31,8 @@ type DashboardPayload = {
   scans: AcunetixScan[];
   fetchedAt: string;
   error?: string;
+  code?: string;
+  traceId?: string;
 };
 
 type FindingsPayload = {
@@ -35,7 +43,21 @@ type FindingsPayload = {
   };
   findings: AcunetixVulnerabilityDetail[];
   error?: string;
+  code?: string;
+  traceId?: string;
 };
+
+function formatApiError(
+  payload: { error?: string; code?: string; traceId?: string } | null,
+  fallback: string,
+) {
+  const base = payload?.error || fallback;
+  if (payload?.code && payload?.traceId) {
+    return `${base} [${payload.code} · ${payload.traceId}]`;
+  }
+  if (payload?.traceId) return `${base} [${payload.traceId}]`;
+  return base;
+}
 
 const RUNNING = new Set([
   "processing",
@@ -105,17 +127,24 @@ export function DashboardClient() {
           router.replace("/login");
           return;
         }
-        const payload = (await response.json()) as DashboardPayload;
-        if (!response.ok) {
-          setError(payload.error || "Failed to load scans");
-          setData(null);
-        } else {
-          setData(payload);
-          setError("");
-        }
-      } catch {
-        setError("Could not reach Acunetix through the tunnel");
-      } finally {
+      const payload = (await response.json()) as DashboardPayload;
+      if (!response.ok) {
+        setError(
+          formatApiError(
+            payload,
+            "Failed to load scans from Acunetix",
+          ),
+        );
+        setData(null);
+      } else {
+        setData(payload);
+        setError("");
+      }
+    } catch {
+      setError(
+        "Connection problem while loading scans. Check Acunetix and the Cloudflare tunnel on your PC.",
+      );
+    } finally {
         setLoading(false);
         setRefreshing(false);
       }
@@ -181,7 +210,7 @@ export function DashboardClient() {
           <button
             type="button"
             onClick={() => void load(true)}
-            className="rounded-full border border-[var(--line)] bg-white/70 px-3 py-1.5 text-sm text-[var(--ink)] transition hover:border-[var(--accent)]"
+            className="rounded-full border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 text-sm text-[var(--ink)] transition hover:border-[var(--accent)]"
           >
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
@@ -202,24 +231,32 @@ export function DashboardClient() {
       ) : null}
 
       {error ? (
-        <div className="rise rounded-2xl border border-[#f0c2bc] bg-[#fff5f3] p-4 text-[var(--danger)]">
+        <div className="rise rounded-2xl border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel))] p-4 text-sm text-[var(--danger)]">
           {error}
         </div>
       ) : null}
 
-      <div className="rise flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <AddTargetForm onCreated={() => void load(true)} />
-        <div className="w-full max-w-md">
+      <section className="rise toolbar-card rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3 backdrop-blur md:p-4">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-3">
+          <p className="mb-2 text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">
+            Add target
+          </p>
+          <AddTargetForm onCreated={() => void load(true)} />
+        </div>
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-3">
+          <p className="mb-2 text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">
+            Search scans
+          </p>
           <input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search scanned targets…"
+            placeholder="Search by URL, status, profile…"
             aria-label="Search scanned targets"
-            className="w-full rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2.5 text-sm text-[var(--ink)] outline-none backdrop-blur transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+            className="field px-3 py-2.5 text-sm"
           />
         </div>
-      </div>
+      </section>
 
       {data ? (
         <>
@@ -264,6 +301,7 @@ export function DashboardClient() {
                       current === scan.scan_id ? null : scan.scan_id,
                     )
                   }
+                  onRetried={() => void load(true)}
                 />
               ))}
             </section>
@@ -300,6 +338,7 @@ export function DashboardClient() {
                         current === scan.scan_id ? null : scan.scan_id,
                       )
                     }
+                    onRetried={() => void load(true)}
                   />
                 ))
               )}
@@ -367,7 +406,7 @@ function SeverityChip({
           : "text-[var(--info)]";
 
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-white/70 px-3 py-3">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-3">
       <div className="text-xs text-[var(--muted)]">{label}</div>
       <div className={`mt-1 text-xl font-semibold ${color}`}>{value}</div>
     </div>
@@ -379,14 +418,21 @@ function ScanRow({
   highlight,
   expanded,
   onToggle,
+  onRetried,
 }: {
   scan: AcunetixScan;
   highlight?: boolean;
   expanded: boolean;
   onToggle: () => void;
+  onRetried?: () => void;
 }) {
   const status = scan.current_session?.status ?? "unknown";
   const tone = statusTone(status);
+  const isFailed = ["failed", "aborted", "error"].includes(
+    status.toLowerCase(),
+  );
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState("");
   const progress = Math.max(
     0,
     Math.min(100, Number(scan.current_session?.progress ?? 0)),
@@ -394,20 +440,51 @@ function ScanRow({
   const counts = scan.current_session?.severity_counts;
   const threat = scan.current_session?.threat;
 
+  async function retryScan(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    setRetrying(true);
+    setRetryError("");
+    try {
+      const response = await fetch(`/api/scans/${scan.scan_id}/retry`, {
+        method: "POST",
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        code?: string;
+        traceId?: string;
+      };
+      if (!response.ok) {
+        setRetryError(
+          formatApiError(payload, "Retry failed. Could not restart scan."),
+        );
+        setRetrying(false);
+        return;
+      }
+      onRetried?.();
+    } catch {
+      setRetryError(
+        "Connection problem while retrying. Check Acunetix/tunnel and try again.",
+      );
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   return (
     <article
       className={`rounded-2xl border bg-[var(--panel)] p-4 backdrop-blur transition ${
         highlight
-          ? "border-[color-mix(in_srgb,var(--accent)_55%,var(--line))] shadow-[0_10px_30px_rgba(15,143,108,0.08)]"
+          ? "border-[color-mix(in_srgb,var(--accent)_55%,var(--line))] shadow-[0_10px_30px_rgba(45,212,168,0.12)]"
           : "border-[var(--line)]"
       }`}
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full flex-col gap-3 text-left sm:flex-row sm:items-start sm:justify-between"
-      >
-        <div className="min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="min-w-0 flex-1 text-left"
+        >
           <h3 className="truncate font-[family-name:var(--font-display)] text-lg font-semibold">
             {scan.target?.address || "Unknown target"}
           </h3>
@@ -420,14 +497,31 @@ function ScanRow({
               {criticalityLabel(scan.criticality)}
             </strong>
           </p>
-        </div>
-        <div className="flex items-center gap-2 self-start">
+        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start">
           <StatusBadge status={status} tone={tone} />
-          <span className="rounded-full border border-[var(--line)] bg-white/80 px-2.5 py-1 text-xs text-[var(--muted)]">
+          {isFailed ? (
+            <button
+              type="button"
+              onClick={(event) => void retryScan(event)}
+              disabled={retrying}
+              className="rounded-full border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_14%,var(--panel-solid))] px-3 py-1 text-xs font-semibold text-[var(--danger)] transition hover:border-[var(--danger)] disabled:opacity-60"
+            >
+              {retrying ? "Retrying…" : "Retry"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onToggle}
+            className="rounded-full border border-[var(--line)] bg-[var(--panel-solid)] px-2.5 py-1 text-xs text-[var(--muted)]"
+          >
             {expanded ? "Hide details" : "View details"}
-          </span>
+          </button>
         </div>
-      </button>
+      </div>
+      {retryError ? (
+        <p className="mt-2 text-xs text-[var(--danger)]">{retryError}</p>
+      ) : null}
 
       <div className="mt-4">
         <div className="mb-1 flex items-center justify-between text-xs text-[var(--muted)]">
@@ -476,7 +570,7 @@ function MiniCount({
           : "text-[var(--info)]";
 
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-white/75 px-3 py-2">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-2">
       <div className="text-[11px] tracking-wide text-[var(--muted)] uppercase">
         {label}
       </div>
@@ -506,13 +600,19 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
         const data = (await response.json()) as FindingsPayload;
         if (cancelled) return;
         if (!response.ok) {
-          setError(data.error || "Failed to load findings");
+          setError(
+            formatApiError(data, "Failed to load findings for this scan"),
+          );
           setPayload(null);
         } else {
           setPayload(data);
         }
       } catch {
-        if (!cancelled) setError("Could not load scan findings");
+        if (!cancelled) {
+          setError(
+            "Connection problem while loading findings. Check Acunetix/tunnel.",
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -532,7 +632,7 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
 
   if (loading) {
     return (
-      <div className="mt-4 rounded-xl border border-[var(--line)] bg-white/70 p-4 text-sm text-[var(--muted)]">
+      <div className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-4 text-sm text-[var(--muted)]">
         Loading every finding for this scan…
       </div>
     );
@@ -540,7 +640,7 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
 
   if (error) {
     return (
-      <div className="mt-4 rounded-xl border border-[#f0c2bc] bg-[#fff5f3] p-4 text-sm text-[var(--danger)]">
+      <div className="mt-4 rounded-xl border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel))] p-4 text-sm text-[var(--danger)]">
         {error}
       </div>
     );
@@ -582,7 +682,7 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
               className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
                 filter === value
                   ? "bg-[var(--accent)] text-white"
-                  : "border border-[var(--line)] bg-white/80 text-[var(--muted)]"
+                  : "border border-[var(--line)] bg-[var(--panel-solid)] text-[var(--muted)]"
               }`}
             >
               {label}
@@ -632,7 +732,7 @@ function FindingCard({
   const recommendation = stripHtml(finding.recommendation);
 
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-white/80 p-3 sm:p-4">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-3 sm:p-4">
       <button
         type="button"
         onClick={onToggle}
@@ -640,7 +740,7 @@ function FindingCard({
       >
         <div className="flex flex-wrap items-center gap-2">
           <SeverityBadge level={finding.severity ?? 0} tone={tone} />
-          <span className="rounded-full bg-[#eef1ef] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">
+          <span className="rounded-full bg-[color-mix(in_srgb,var(--muted)_18%,var(--panel-solid))] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">
             {finding.status}
           </span>
           <span className="text-[11px] text-[var(--muted)]">
@@ -766,12 +866,12 @@ function SeverityBadge({
 }) {
   const styles =
     tone === "danger"
-      ? "bg-[#fdecea] text-[var(--danger)]"
+      ? "bg-[color-mix(in_srgb,var(--danger)_16%,var(--panel-solid))] text-[var(--danger)]"
       : tone === "warn"
-        ? "bg-[#fff4e5] text-[var(--warn)]"
+        ? "bg-[color-mix(in_srgb,var(--warn)_16%,var(--panel-solid))] text-[var(--warn)]"
         : tone === "ok"
-          ? "bg-[#e8f6ee] text-[var(--ok)]"
-          : "bg-[#eaf1ff] text-[var(--info)]";
+          ? "bg-[color-mix(in_srgb,var(--ok)_16%,var(--panel-solid))] text-[var(--ok)]"
+          : "bg-[color-mix(in_srgb,var(--info)_16%,var(--panel-solid))] text-[var(--info)]";
 
   return (
     <span
@@ -791,12 +891,12 @@ function StatusBadge({
 }) {
   const styles =
     tone === "running"
-      ? "bg-[#e6f7f0] text-[var(--accent-deep)]"
+      ? "bg-[color-mix(in_srgb,var(--accent)_16%,var(--panel-solid))] text-[var(--accent-deep)]"
       : tone === "ok"
-        ? "bg-[#e8f6ee] text-[var(--ok)]"
+        ? "bg-[color-mix(in_srgb,var(--ok)_16%,var(--panel-solid))] text-[var(--ok)]"
         : tone === "danger"
-          ? "bg-[#fdecea] text-[var(--danger)]"
-          : "bg-[#eef1ef] text-[var(--muted)]";
+          ? "bg-[color-mix(in_srgb,var(--danger)_16%,var(--panel-solid))] text-[var(--danger)]"
+          : "bg-[color-mix(in_srgb,var(--muted)_18%,var(--panel-solid))] text-[var(--muted)]";
 
   return (
     <span

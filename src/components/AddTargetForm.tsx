@@ -6,6 +6,25 @@ type AddTargetFormProps = {
   onCreated?: () => void;
 };
 
+type ApiErrorPayload = {
+  error?: string;
+  code?: string;
+  traceId?: string;
+  target?: { address?: string };
+  succeeded?: number;
+  total?: number;
+  failed?: number;
+};
+
+function formatError(payload: ApiErrorPayload, fallback: string) {
+  const base = payload.error || fallback;
+  if (payload.code && payload.traceId) {
+    return `${base} [${payload.code} · ${payload.traceId}]`;
+  }
+  if (payload.traceId) return `${base} [${payload.traceId}]`;
+  return base;
+}
+
 export function AddTargetForm({ onCreated }: AddTargetFormProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [address, setAddress] = useState("");
@@ -27,13 +46,10 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address }),
       });
-      const payload = (await response.json()) as {
-        error?: string;
-        target?: { target_id?: string; address?: string };
-      };
+      const payload = (await response.json()) as ApiErrorPayload;
 
       if (!response.ok) {
-        setError(payload.error || "Failed to add target");
+        setError(formatError(payload, "Failed to add target"));
         setLoading(false);
         return;
       }
@@ -42,7 +58,9 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
       setAddress("");
       onCreated?.();
     } catch {
-      setError("Could not reach the dashboard API");
+      setError(
+        "Network error while adding target. Check your connection and try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -62,15 +80,10 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
         method: "POST",
         body: form,
       });
-      const payload = (await response.json()) as {
-        error?: string;
-        total?: number;
-        succeeded?: number;
-        failed?: number;
-      };
+      const payload = (await response.json()) as ApiErrorPayload;
 
       if (!response.ok) {
-        setError(payload.error || "Bulk upload failed");
+        setError(formatError(payload, "Bulk upload failed"));
         setBulkLoading(false);
         return;
       }
@@ -81,7 +94,9 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
       );
       onCreated?.();
     } catch {
-      setError("Could not upload the URL file");
+      setError(
+        "Network error while uploading URLs. Check your connection and tunnel status.",
+      );
     } finally {
       setBulkLoading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -89,10 +104,10 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
   }
 
   return (
-    <section className="rise max-w-xl rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-3 backdrop-blur">
+    <div className="flex h-full flex-col justify-center gap-2">
       <form
         onSubmit={onSubmit}
-        className="flex flex-col gap-2 sm:flex-row sm:items-center"
+        className="flex items-center gap-2"
       >
         <input
           required
@@ -100,18 +115,18 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
           onChange={(event) => setAddress(event.target.value)}
           placeholder="Add target address"
           aria-label="Address"
-          className="min-w-0 flex-1 rounded-lg border border-[var(--line)] bg-white/80 px-3 py-2 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+          className="field min-w-0 flex-1 px-3 py-2 text-sm"
         />
         <button
           type="submit"
           disabled={loading || bulkLoading || !address.trim()}
-          className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-[#06261c] transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "Adding…" : "Add"}
         </button>
       </form>
 
-      <div className="mt-2 flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <input
           ref={fileRef}
           type="file"
@@ -126,21 +141,21 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
           type="button"
           disabled={loading || bulkLoading}
           onClick={() => fileRef.current?.click()}
-          className="rounded-lg border border-[var(--line)] bg-white/80 px-3 py-1.5 text-xs font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 text-xs font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {bulkLoading ? "Uploading…" : "Bulk upload URLs"}
+          {bulkLoading ? "Uploading…" : "Bulk upload"}
         </button>
         <span className="truncate text-[11px] text-[var(--muted)]">
-          {fileName || ".txt / .csv — one URL per line"}
+          {fileName || ".txt / .csv"}
         </span>
       </div>
 
       {error ? (
-        <p className="mt-2 text-xs text-[var(--danger)]">{error}</p>
+        <p className="text-xs leading-relaxed text-[var(--danger)]">{error}</p>
       ) : null}
       {success ? (
-        <p className="mt-2 text-xs text-[var(--ok)]">{success}</p>
+        <p className="text-xs text-[var(--ok)]">{success}</p>
       ) : null}
-    </section>
+    </div>
   );
 }
