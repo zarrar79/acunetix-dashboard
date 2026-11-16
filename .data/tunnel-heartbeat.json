@@ -1,7 +1,7 @@
 {
   "tunnelUp": true,
   "publicUrl": "https://ensemble-updating-governmental-concern.trycloudflare.com",
-  "at": 1794858526059,
-  "error": null,
+  "at": 1794858773322,
+  "error": "fetch failed",
   "result": "Tunnel already up at https://ensemble-updating-governmental-concern.trycloudflare.com"
 }
