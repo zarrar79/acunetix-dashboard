@@ -132,15 +132,5 @@ a {
 }
 
 .toolbar-card {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.75rem;
   width: 100%;
-}
-
-@media (min-width: 768px) {
-  .toolbar-card {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-    align-items: stretch;
-  }
 }

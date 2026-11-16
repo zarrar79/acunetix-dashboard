@@ -208,19 +208,15 @@ export function DashboardClient() {
   }, [search]);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-10">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-6">
       <header className="rise flex items-start justify-between gap-4">
         <div>
-          <p className="font-[family-name:var(--font-display)] text-sm font-semibold tracking-[0.18em] text-[var(--accent-deep)] uppercase">
+          <p className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-[0.18em] text-[var(--accent-deep)] uppercase">
             Daybreak Scan Desk
           </p>
-          <h1 className="mt-2 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
+          <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl">
             Acunetix stats
           </h1>
-          <p className="mt-2 max-w-xl text-sm text-[var(--muted)] sm:text-base">
-            Open any scan for critical / high / medium / low / informational
-            findings, risk, CVSS, and remediation detail.
-          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
           <button
@@ -252,26 +248,18 @@ export function DashboardClient() {
         </div>
       ) : null}
 
-      <section className="rise toolbar-card rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3 backdrop-blur md:p-4">
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-3">
-          <p className="mb-2 text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">
-            Add target
-          </p>
+      <section className="rise toolbar-card flex flex-col gap-1.5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-2 backdrop-blur sm:flex-row sm:items-center sm:gap-2">
+        <div className="min-w-0 flex-1">
           <AddTargetForm onCreated={() => void load(true)} />
         </div>
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-3">
-          <p className="mb-2 text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">
-            Search scans
-          </p>
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by URL, status, profile…"
-            aria-label="Search scanned targets"
-            className="field px-3 py-2.5 text-sm"
-          />
-        </div>
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search scans…"
+          aria-label="Search scanned targets"
+          className="field w-full shrink-0 px-2.5 py-1.5 text-sm sm:w-56 md:w-64"
+        />
       </section>
 
       {data ? (

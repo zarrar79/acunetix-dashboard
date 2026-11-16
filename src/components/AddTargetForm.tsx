@@ -104,29 +104,23 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
   }
 
   return (
-    <div className="flex h-full flex-col justify-center gap-2">
-      <form
-        onSubmit={onSubmit}
-        className="flex items-center gap-2"
-      >
+    <div className="flex flex-col gap-1">
+      <form onSubmit={onSubmit} className="flex min-w-0 items-center gap-1.5">
         <input
           required
           value={address}
           onChange={(event) => setAddress(event.target.value)}
-          placeholder="Add target address"
+          placeholder="Add target URL"
           aria-label="Address"
-          className="field min-w-0 flex-1 px-3 py-2 text-sm"
+          className="field min-w-0 flex-1 px-2.5 py-1.5 text-sm"
         />
         <button
           type="submit"
           disabled={loading || bulkLoading || !address.trim()}
-          className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-[#06261c] transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="shrink-0 rounded-md bg-[var(--accent)] px-2.5 py-1.5 text-xs font-semibold text-[#06261c] transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Adding…" : "Add"}
+          {loading ? "…" : "Add"}
         </button>
-      </form>
-
-      <div className="flex items-center gap-2">
         <input
           ref={fileRef}
           type="file"
@@ -141,20 +135,18 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
           type="button"
           disabled={loading || bulkLoading}
           onClick={() => fileRef.current?.click()}
-          className="rounded-lg border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 text-xs font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+          title={fileName || "Bulk upload .txt / .csv"}
+          className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--panel-solid)] px-2.5 py-1.5 text-xs font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {bulkLoading ? "Uploading…" : "Bulk upload"}
+          {bulkLoading ? "…" : "Bulk"}
         </button>
-        <span className="truncate text-[11px] text-[var(--muted)]">
-          {fileName || ".txt / .csv"}
-        </span>
-      </div>
+      </form>
 
       {error ? (
-        <p className="text-xs leading-relaxed text-[var(--danger)]">{error}</p>
+        <p className="text-[11px] leading-snug text-[var(--danger)]">{error}</p>
       ) : null}
       {success ? (
-        <p className="text-xs text-[var(--ok)]">{success}</p>
+        <p className="text-[11px] text-[var(--ok)]">{success}</p>
       ) : null}
     </div>
   );
