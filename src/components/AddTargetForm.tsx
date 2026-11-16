@@ -36,9 +36,7 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
         return;
       }
 
-      setSuccess(
-        `Added ${payload.target?.address || address}. Continuous scan started with Comprehensive (new) report.`,
-      );
+      setSuccess(`Target added: ${payload.target?.address || address}`);
       setAddress("");
       onCreated?.();
     } catch {
@@ -53,9 +51,6 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
       <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
         Add target
       </h2>
-      <p className="mt-1 text-sm text-[var(--muted)]">
-        Enter the site address. The other settings are applied automatically.
-      </p>
 
       <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4">
         <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
@@ -68,13 +63,6 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
             className="rounded-xl border border-[var(--line)] bg-white/80 px-4 py-3 text-base text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
           />
         </label>
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          <DefaultChip label="Scan speed" value="Slow" />
-          <DefaultChip label="Business criticality" value="Critical" />
-          <DefaultChip label="Continuous scanning" value="Checked" />
-          <DefaultChip label="Report" value="Comprehensive (new)" />
-        </div>
 
         {error ? (
           <p className="rounded-lg bg-[#fdecea] px-3 py-2 text-sm text-[var(--danger)]">
@@ -92,20 +80,9 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
           disabled={loading || !address.trim()}
           className="rounded-xl bg-[var(--accent)] px-4 py-3 text-base font-semibold text-white transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Adding target…" : "Add target & start scan"}
+          {loading ? "Adding target…" : "Add target"}
         </button>
       </form>
     </section>
-  );
-}
-
-function DefaultChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-[var(--line)] bg-white/75 px-3 py-2">
-      <div className="text-[11px] tracking-wide text-[var(--muted)] uppercase">
-        {label}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-[var(--ink)]">{value}</div>
-    </div>
   );
 }
