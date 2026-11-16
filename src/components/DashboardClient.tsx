@@ -211,15 +211,12 @@ export function DashboardClient() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-6">
       <header className="rise flex items-start justify-between gap-4">
         <div>
-          <p className="font-[family-name:var(--font-mono)] text-[10px] font-semibold tracking-[0.22em] text-[var(--accent)] uppercase">
-            Daybreak // ops console
+          <p className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-[0.18em] text-[var(--accent)] uppercase">
+            Daybreak Scan Desk
           </p>
           <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl">
-            Threat scan desk
+            Acunetix stats
           </h1>
-          <p className="mt-1 font-[family-name:var(--font-mono)] text-[11px] text-[var(--muted)]">
-            live acunetix telemetry · risk lattice online
-          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
           <button
@@ -227,7 +224,7 @@ export function DashboardClient() {
             onClick={() => void load(true)}
             className="rounded-md border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 font-[family-name:var(--font-mono)] text-xs tracking-wide text-[var(--ink)] uppercase transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
           >
-            {refreshing ? "Syncing…" : "Sync"}
+            {refreshing ? "Refreshing…" : "Refresh"}
           </button>
           <button
             type="button"
@@ -280,9 +277,6 @@ export function DashboardClient() {
           <section className="rise rise-delay-2 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 backdrop-blur sm:p-5">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
-                  Risk detection
-                </p>
                 <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
                   Severity across listed scans
                 </h2>
@@ -298,14 +292,9 @@ export function DashboardClient() {
 
           {runningScans.length > 0 ? (
             <section className="rise rise-delay-2 flex flex-col gap-3">
-              <div>
-                <p className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
-                  Active engagements
-                </p>
-                <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-                  Running now
-                </h2>
-              </div>
+              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+                Running now
+              </h2>
               {runningScans.map((scan) => (
                 <ScanRow
                   key={scan.scan_id}

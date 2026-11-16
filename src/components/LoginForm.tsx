@@ -71,7 +71,7 @@ export function LoginForm() {
         disabled={loading}
         className="rounded-xl bg-[var(--accent)] px-4 py-3 text-base font-semibold text-[#06261c] transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading ? "Authorizing…" : "Enter console"}
+        {loading ? "Signing in…" : "Open dashboard"}
       </button>
     </form>
   );

@@ -23,7 +23,7 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "Daybreak Scan Desk",
-  description: "Ops console for Acunetix scan stats and risk telemetry",
+  description: "Mobile dashboard for Acunetix scan stats",
 };
 
 export default function RootLayout({
