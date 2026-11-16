@@ -19,7 +19,6 @@ import {
   threatLabel,
 } from "@/lib/labels";
 import { AddTargetForm } from "@/components/AddTargetForm";
-import { ThreatMap } from "@/components/ThreatMap";
 
 type DashboardPayload = {
   summary: {
@@ -266,12 +265,6 @@ export function DashboardClient() {
 
       {data ? (
         <>
-          <ThreatMap
-            scans={data.scans}
-            severity={data.summary.severity}
-            running={data.summary.running}
-          />
-
           <section className="rise rise-delay-1 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="Total" value={data.summary.total} />
             <Stat
