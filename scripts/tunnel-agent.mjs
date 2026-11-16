@@ -83,6 +83,7 @@ async function api(path, init = {}) {
       ...(init.headers || {}),
     },
     cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
   });
   const text = await response.text();
   let json = null;
