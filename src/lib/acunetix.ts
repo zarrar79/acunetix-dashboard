@@ -481,6 +481,133 @@ export async function getScan(scanId: string): Promise<AcunetixScan> {
   return acunetixFetch<AcunetixScan>(`/api/v1/scans/${scanId}`);
 }
 
+export async function listAllScans(pageSize = 100): Promise<ScansResponse> {
+  const safeSize = Math.min(Math.max(pageSize, 1), 100);
+  const scans: AcunetixScan[] = [];
+  let cursor: string | null = null;
+  let guard = 0;
+  let lastPagination: ScansResponse["pagination"] = {
+    count: 0,
+    cursors: [null],
+  };
+
+  while (guard < 50) {
+    guard += 1;
+    const path: string = cursor
+      ? `/api/v1/scans?l=${safeSize}&c=${encodeURIComponent(cursor)}`
+      : `/api/v1/scans?l=${safeSize}`;
+    const page: ScansResponse = await acunetixFetch<ScansResponse>(path);
+    const batch = page.scans ?? [];
+    scans.push(...batch);
+    lastPagination = page.pagination ?? lastPagination;
+
+    const cursors: Array<string | null> = page.pagination?.cursors ?? [];
+    const next: string | null =
+      cursors.length > 1 ? cursors[cursors.length - 1] : null;
+    if (!next || batch.length === 0) break;
+    cursor = next;
+  }
+
+  return {
+    pagination: {
+      ...lastPagination,
+      count: scans.length,
+    },
+    scans,
+  };
+}
+
+export type ScanControlAction = "pause" | "resume" | "stop" | "delete";
+
+export async function controlScan(scanId: string, action: ScanControlAction) {
+  if (!scanId) {
+    throw new AppError("VALIDATION", "Scan id is required");
+  }
+
+  const scan = await getScan(scanId);
+  const status = scan.current_session?.status?.toLowerCase?.() ?? "";
+
+  if (action === "pause") {
+    if (!["processing", "scanning", "starting", "queued", "resuming"].includes(status)) {
+      throw new AppError(
+        "CONFLICT",
+        `Cannot pause a scan with status "${status || "unknown"}".`,
+        { details: { scanId, status, action } },
+      );
+    }
+    await acunetixFetch(`/api/v1/scans/${scanId}/pause`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    return { ok: true, action, scanId };
+  }
+
+  if (action === "resume") {
+    if (status !== "paused") {
+      throw new AppError(
+        "CONFLICT",
+        `Cannot resume a scan with status "${status || "unknown"}".`,
+        { details: { scanId, status, action } },
+      );
+    }
+    await acunetixFetch(`/api/v1/scans/${scanId}/resume`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    return { ok: true, action, scanId };
+  }
+
+  if (action === "stop") {
+    if (
+      ["completed", "failed", "aborted", "error"].includes(status)
+    ) {
+      throw new AppError(
+        "CONFLICT",
+        `Scan is already finished with status "${status}".`,
+        { details: { scanId, status, action } },
+      );
+    }
+    await acunetixFetch(`/api/v1/scans/${scanId}/abort`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    return { ok: true, action, scanId };
+  }
+
+  // delete
+  const active = [
+    "processing",
+    "scanning",
+    "starting",
+    "queued",
+    "pausing",
+    "resuming",
+    "paused",
+    "scheduled",
+  ].includes(status);
+
+  if (active) {
+    try {
+      await acunetixFetch(`/api/v1/scans/${scanId}/abort`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+    } catch {
+      // continue to delete attempt
+    }
+  }
+
+  await acunetixFetch(`/api/v1/scans/${scanId}`, {
+    method: "DELETE",
+  });
+
+  return { ok: true, action, scanId };
+}
+
 export async function listScanVulnerabilities(
   scanId: string,
   sessionId: string,

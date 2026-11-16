@@ -115,6 +115,8 @@ export function DashboardClient() {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   const load = useCallback(
     async (silent = false) => {
@@ -183,13 +185,27 @@ export function DashboardClient() {
     });
   }, [data, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredScans.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+
+  const pagedScans = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredScans.slice(start, start + PAGE_SIZE);
+  }, [filteredScans, currentPage, PAGE_SIZE]);
+
   const runningScans = useMemo(
     () =>
       filteredScans.filter((scan) =>
-        RUNNING.has(scan.current_session?.status?.toLowerCase?.() ?? ""),
+        RUNNING.has(scan.current_session?.status?.toLowerCase?.() ?? "") ||
+        (scan.current_session?.status?.toLowerCase?.() ?? "") === "paused" ||
+        (scan.current_session?.status?.toLowerCase?.() ?? "") === "scanning",
       ),
     [filteredScans],
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-10">
@@ -301,22 +317,20 @@ export function DashboardClient() {
                       current === scan.scan_id ? null : scan.scan_id,
                     )
                   }
-                  onRetried={() => void load(true)}
+                  onChanged={() => void load(true)}
                 />
               ))}
             </section>
           ) : null}
 
           <section className="rise rise-delay-3 flex flex-col gap-3">
-            <div className="flex items-end justify-between gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
                 All scans
-                {search.trim() ? (
-                  <span className="ml-2 text-sm font-normal text-[var(--muted)]">
-                    ({filteredScans.length} match
-                    {filteredScans.length === 1 ? "" : "es"})
-                  </span>
-                ) : null}
+                <span className="ml-2 text-sm font-normal text-[var(--muted)]">
+                  ({filteredScans.length} of {data.scans.length}
+                  {search.trim() ? " matching" : ""} · 15/page)
+                </span>
               </h2>
               <p className="text-xs text-[var(--muted)]">
                 Updated {formatDate(data.fetchedAt)}
@@ -325,10 +339,12 @@ export function DashboardClient() {
             <div className="flex flex-col gap-3">
               {filteredScans.length === 0 ? (
                 <p className="rounded-xl border border-[var(--line)] bg-[var(--panel)] p-4 text-sm text-[var(--muted)]">
-                  No scanned targets match “{search.trim()}”.
+                  {search.trim()
+                    ? `No scanned targets match “${search.trim()}”.`
+                    : "No scans found."}
                 </p>
               ) : (
-                filteredScans.map((scan) => (
+                pagedScans.map((scan) => (
                   <ScanRow
                     key={scan.scan_id}
                     scan={scan}
@@ -338,11 +354,44 @@ export function DashboardClient() {
                         current === scan.scan_id ? null : scan.scan_id,
                       )
                     }
-                    onRetried={() => void load(true)}
+                    onChanged={() => void load(true)}
                   />
                 ))
               )}
             </div>
+
+            {filteredScans.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2">
+                <p className="text-xs text-[var(--muted)]">
+                  Showing {(currentPage - 1) * PAGE_SIZE + 1}-
+                  {Math.min(currentPage * PAGE_SIZE, filteredScans.length)} of{" "}
+                  {filteredScans.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded-lg border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-xs text-[var(--muted)]">
+                    Page {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() =>
+                      setPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    className="rounded-lg border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </section>
         </>
       ) : null}
@@ -418,21 +467,34 @@ function ScanRow({
   highlight,
   expanded,
   onToggle,
-  onRetried,
+  onChanged,
 }: {
   scan: AcunetixScan;
   highlight?: boolean;
   expanded: boolean;
   onToggle: () => void;
-  onRetried?: () => void;
+  onChanged?: () => void;
 }) {
   const status = scan.current_session?.status ?? "unknown";
+  const statusLower = status.toLowerCase();
   const tone = statusTone(status);
-  const isFailed = ["failed", "aborted", "error"].includes(
-    status.toLowerCase(),
-  );
-  const [retrying, setRetrying] = useState(false);
-  const [retryError, setRetryError] = useState("");
+  const isFailed = ["failed", "aborted", "error"].includes(statusLower);
+  const canPause = [
+    "processing",
+    "scanning",
+    "starting",
+    "queued",
+    "resuming",
+  ].includes(statusLower);
+  const canResume = statusLower === "paused";
+  const canStop = ![
+    "completed",
+    "failed",
+    "aborted",
+    "error",
+  ].includes(statusLower);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
   const progress = Math.max(
     0,
     Math.min(100, Number(scan.current_session?.progress ?? 0)),
@@ -440,34 +502,42 @@ function ScanRow({
   const counts = scan.current_session?.severity_counts;
   const threat = scan.current_session?.threat;
 
-  async function retryScan(event: MouseEvent) {
+  async function runAction(
+    event: MouseEvent,
+    action: "pause" | "resume" | "stop" | "delete" | "retry",
+  ) {
     event.preventDefault();
     event.stopPropagation();
-    setRetrying(true);
-    setRetryError("");
+    setActionLoading(action);
+    setActionError("");
     try {
-      const response = await fetch(`/api/scans/${scan.scan_id}/retry`, {
-        method: "POST",
-      });
+      const response =
+        action === "retry"
+          ? await fetch(`/api/scans/${scan.scan_id}/retry`, { method: "POST" })
+          : await fetch(`/api/scans/${scan.scan_id}/control`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action }),
+            });
       const payload = (await response.json()) as {
         error?: string;
         code?: string;
         traceId?: string;
       };
       if (!response.ok) {
-        setRetryError(
-          formatApiError(payload, "Retry failed. Could not restart scan."),
+        setActionError(
+          formatApiError(payload, `Could not ${action} this scan.`),
         );
-        setRetrying(false);
+        setActionLoading(null);
         return;
       }
-      onRetried?.();
+      onChanged?.();
     } catch {
-      setRetryError(
-        "Connection problem while retrying. Check Acunetix/tunnel and try again.",
+      setActionError(
+        `Connection problem while trying to ${action}. Check Acunetix/tunnel.`,
       );
     } finally {
-      setRetrying(false);
+      setActionLoading(null);
     }
   }
 
@@ -500,16 +570,51 @@ function ScanRow({
         </button>
         <div className="flex flex-wrap items-center gap-2 self-start">
           <StatusBadge status={status} tone={tone} />
-          {isFailed ? (
-            <button
-              type="button"
-              onClick={(event) => void retryScan(event)}
-              disabled={retrying}
-              className="rounded-full border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_14%,var(--panel-solid))] px-3 py-1 text-xs font-semibold text-[var(--danger)] transition hover:border-[var(--danger)] disabled:opacity-60"
-            >
-              {retrying ? "Retrying…" : "Retry"}
-            </button>
+          {canPause ? (
+            <ActionChip
+              label={actionLoading === "pause" ? "Pausing…" : "Pause"}
+              disabled={!!actionLoading}
+              onClick={(event) => void runAction(event, "pause")}
+            />
           ) : null}
+          {canResume ? (
+            <ActionChip
+              label={actionLoading === "resume" ? "Resuming…" : "Resume"}
+              disabled={!!actionLoading}
+              onClick={(event) => void runAction(event, "resume")}
+            />
+          ) : null}
+          {canStop ? (
+            <ActionChip
+              label={actionLoading === "stop" ? "Stopping…" : "Stop"}
+              tone="warn"
+              disabled={!!actionLoading}
+              onClick={(event) => void runAction(event, "stop")}
+            />
+          ) : null}
+          {isFailed ? (
+            <ActionChip
+              label={actionLoading === "retry" ? "Retrying…" : "Retry"}
+              tone="danger"
+              disabled={!!actionLoading}
+              onClick={(event) => void runAction(event, "retry")}
+            />
+          ) : null}
+          <ActionChip
+            label={actionLoading === "delete" ? "Deleting…" : "Delete"}
+            tone="danger"
+            disabled={!!actionLoading}
+            onClick={(event) => {
+              if (
+                !window.confirm(
+                  `Delete scan for ${scan.target?.address || "this target"}?`,
+                )
+              ) {
+                return;
+              }
+              void runAction(event, "delete");
+            }}
+          />
           <button
             type="button"
             onClick={onToggle}
@@ -519,8 +624,8 @@ function ScanRow({
           </button>
         </div>
       </div>
-      {retryError ? (
-        <p className="mt-2 text-xs text-[var(--danger)]">{retryError}</p>
+      {actionError ? (
+        <p className="mt-2 text-xs text-[var(--danger)]">{actionError}</p>
       ) : null}
 
       <div className="mt-4">
@@ -879,6 +984,36 @@ function SeverityBadge({
     >
       {severityLabel(level)}
     </span>
+  );
+}
+
+function ActionChip({
+  label,
+  onClick,
+  disabled,
+  tone = "default",
+}: {
+  label: string;
+  onClick: (event: MouseEvent) => void;
+  disabled?: boolean;
+  tone?: "default" | "warn" | "danger";
+}) {
+  const styles =
+    tone === "danger"
+      ? "border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_14%,var(--panel-solid))] text-[var(--danger)]"
+      : tone === "warn"
+        ? "border-[color-mix(in_srgb,var(--warn)_45%,var(--line))] bg-[color-mix(in_srgb,var(--warn)_14%,var(--panel-solid))] text-[var(--warn)]"
+        : "border-[var(--line)] bg-[var(--panel-solid)] text-[var(--ink)]";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-full border px-3 py-1 text-xs font-semibold transition disabled:opacity-60 ${styles}`}
+    >
+      {label}
+    </button>
   );
 }
 
