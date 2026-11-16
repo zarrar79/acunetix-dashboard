@@ -157,6 +157,43 @@ export async function listScans(limit = 50): Promise<ScansResponse> {
   return acunetixFetch<ScansResponse>(`/api/v1/scans?l=${limit}`);
 }
 
+type TargetDetails = CreatedTarget & {
+  continuous_mode?: boolean;
+  criticality: number;
+};
+
+type TargetConfiguration = {
+  scan_speed?: string;
+  default_scanning_profile_id?: string | null;
+};
+
+type ContinuousScanSetting = {
+  enabled?: boolean;
+};
+
+type CreatedScan = {
+  scan_id: string;
+  profile_id?: string;
+  report_template_id?: string;
+};
+
+function assertStrict(
+  condition: boolean,
+  message: string,
+): asserts condition {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+/**
+ * Strict defaults for every new target:
+ * - Address: provided by user
+ * - Scan speed: slow
+ * - Business criticality: Critical (30)
+ * - Continuous scanning: enabled
+ * - Report: Comprehensive (new)
+ */
 export async function createTargetWithDefaults(address: string) {
   const trimmed = address.trim();
   if (!trimmed) {
@@ -186,7 +223,16 @@ export async function createTargetWithDefaults(address: string) {
     throw new Error("Acunetix did not return a target id");
   }
 
-  // Scan speed: slow, default profile: Full Scan
+  // Enforce Critical business criticality (in case create ignored it)
+  await acunetixFetch(`/api/v1/targets/${target.target_id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      criticality: BUSINESS_CRITICALITY_CRITICAL,
+    }),
+  });
+
+  // Scan speed: slow
   await acunetixFetch(`/api/v1/targets/${target.target_id}/configuration`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -196,15 +242,15 @@ export async function createTargetWithDefaults(address: string) {
     }),
   });
 
-  // Continuous scanning: enabled
+  // Continuous scanning: checked/enabled
   await acunetixFetch(`/api/v1/targets/${target.target_id}/continuous_scan`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ enabled: true }),
   });
 
-  // Start scan using Comprehensive (new) report
-  const scan = await acunetixFetch<{ scan_id: string }>("/api/v1/scans", {
+  // Start scan with Comprehensive (new) report
+  const scan = await acunetixFetch<CreatedScan>("/api/v1/scans", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -219,8 +265,38 @@ export async function createTargetWithDefaults(address: string) {
     }),
   });
 
+  // Verify every required setting was actually applied
+  const [targetDetails, configuration, continuous, scanDetails] =
+    await Promise.all([
+      acunetixFetch<TargetDetails>(`/api/v1/targets/${target.target_id}`),
+      acunetixFetch<TargetConfiguration>(
+        `/api/v1/targets/${target.target_id}/configuration`,
+      ),
+      acunetixFetch<ContinuousScanSetting>(
+        `/api/v1/targets/${target.target_id}/continuous_scan`,
+      ),
+      acunetixFetch<CreatedScan>(`/api/v1/scans/${scan.scan_id}`),
+    ]);
+
+  assertStrict(
+    targetDetails.criticality === BUSINESS_CRITICALITY_CRITICAL,
+    `Business criticality must be Critical, got ${targetDetails.criticality}`,
+  );
+  assertStrict(
+    configuration.scan_speed === "slow",
+    `Scan speed must be slow, got ${configuration.scan_speed}`,
+  );
+  assertStrict(
+    continuous.enabled === true && targetDetails.continuous_mode === true,
+    "Continuous scanning must be enabled",
+  );
+  assertStrict(
+    scanDetails.report_template_id === COMPREHENSIVE_NEW_REPORT_ID,
+    `Report must be Comprehensive (new), got ${scanDetails.report_template_id}`,
+  );
+
   return {
-    target,
+    target: targetDetails,
     scanId: scan.scan_id,
     settings: {
       address: trimmed,
@@ -228,7 +304,6 @@ export async function createTargetWithDefaults(address: string) {
       businessCriticality: "Critical",
       continuousScanning: true,
       report: "Comprehensive (new)",
-      profile: "Full Scan",
     },
   };
 }
