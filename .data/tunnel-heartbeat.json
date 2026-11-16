@@ -1,7 +1,7 @@
 {
-  "tunnelUp": true,
-  "publicUrl": "https://texas-invitation-removable-favorites.trycloudflare.com",
-  "at": 1794856914444,
+  "tunnelUp": false,
+  "publicUrl": null,
+  "at": 1794856917924,
   "error": null,
   "result": "Tunnel stopped"
 }
