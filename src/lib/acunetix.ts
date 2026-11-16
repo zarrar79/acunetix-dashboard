@@ -4,6 +4,10 @@ import {
   mapAcunetixHttpError,
   mapFetchFailure,
 } from "@/lib/errors";
+import {
+  assertAcunetixBaseUrl,
+  cloudflareAccessHeaders,
+} from "@/lib/security";
 
 export type SeverityCounts = {
   critical: number;
@@ -96,13 +100,25 @@ export {
 } from "@/lib/labels";
 
 function getConfig() {
-  const baseUrl = process.env.ACUNETIX_BASE_URL?.replace(/\/$/, "");
+  const rawBase = process.env.ACUNETIX_BASE_URL;
   const apiKey = process.env.ACUNETIX_API_KEY;
 
-  if (!baseUrl || !apiKey) {
+  if (!rawBase || !apiKey) {
     throw new AppError(
       "CONFIG",
       "Scanner configuration is missing. Set ACUNETIX_BASE_URL and ACUNETIX_API_KEY.",
+    );
+  }
+
+  let baseUrl: string;
+  try {
+    baseUrl = assertAcunetixBaseUrl(rawBase);
+  } catch (error) {
+    throw new AppError(
+      "CONFIG",
+      error instanceof Error
+        ? error.message
+        : "ACUNETIX_BASE_URL failed validation.",
     );
   }
 
@@ -124,6 +140,7 @@ export async function acunetixFetch<T>(
       headers: {
         Accept: "application/json",
         "X-Auth": apiKey,
+        ...cloudflareAccessHeaders(),
         ...(init?.headers ?? {}),
       },
       cache: "no-store",

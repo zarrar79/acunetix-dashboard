@@ -26,7 +26,16 @@ export function LoginForm() {
           error?: string;
           code?: string;
           traceId?: string;
+          retryAfterSeconds?: number;
         } | null;
+        if (response.status === 429 || data?.code === "RATE_LIMIT") {
+          const wait = data?.retryAfterSeconds
+            ? ` Try again in about ${data.retryAfterSeconds}s.`
+            : "";
+          setError(`Too many login attempts.${wait}`);
+          setLoading(false);
+          return;
+        }
         const base = data?.error || "Login failed";
         setError(
           data?.code && data?.traceId

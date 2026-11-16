@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE, verifySessionToken } from "@/lib/session";
+import { SECURITY_HEADERS } from "@/lib/security";
+
+function withSecurityHeaders(response: NextResponse) {
+  for (const header of SECURITY_HEADERS) {
+    response.headers.set(header.key, header.value);
+  }
+  return response;
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -14,19 +22,23 @@ export async function middleware(request: NextRequest) {
   ) {
     if (!authed) {
       if (pathname.startsWith("/api/")) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return withSecurityHeaders(
+          NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+        );
       }
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("next", pathname);
-      return NextResponse.redirect(loginUrl);
+      return withSecurityHeaders(NextResponse.redirect(loginUrl));
     }
   }
 
   if (pathname === "/login" && authed) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return withSecurityHeaders(
+      NextResponse.redirect(new URL("/dashboard", request.url)),
+    );
   }
 
-  return NextResponse.next();
+  return withSecurityHeaders(NextResponse.next());
 }
 
 export const config = {
@@ -36,6 +48,9 @@ export const config = {
     "/api/scans/:path*",
     "/api/targets",
     "/api/targets/:path*",
+    "/api/auth/login",
+    "/api/health",
     "/login",
+    "/",
   ],
 };

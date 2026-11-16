@@ -1,3 +1,5 @@
+import { redactSensitive } from "@/lib/security";
+
 export type AppErrorCode =
   | "VALIDATION"
   | "UNAUTHORIZED"
@@ -200,11 +202,16 @@ export function toErrorResponse(error: unknown) {
     ? error
     : mapFetchFailure(error);
 
+  const safeDetails = redactSensitive(appError.details) as
+    | Record<string, unknown>
+    | null
+    | undefined;
+
   console.error("[DaybreakError]", {
     traceId: appError.traceId,
     code: appError.code,
     message: appError.message,
-    details: appError.details,
+    details: safeDetails ?? null,
   });
 
   return {
@@ -213,7 +220,8 @@ export function toErrorResponse(error: unknown) {
       error: appError.message,
       code: appError.code,
       traceId: appError.traceId,
-      details: appError.details ?? null,
+      // Do not echo raw upstream details to clients.
+      details: null,
     },
     status: appError.status,
   };

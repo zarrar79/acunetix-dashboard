@@ -28,7 +28,8 @@ function timingSafeEqualHex(a: string, b: string) {
 }
 
 export const AUTH_COOKIE = "ax_dash_session";
-export const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+/** 24 hours — short enough for a shared-password ops desk. */
+export const MAX_AGE_SECONDS = 60 * 60 * 24;
 
 export async function createSessionToken(secret: string) {
   const issuedAt = Date.now().toString();

@@ -5,6 +5,7 @@ import {
   createSessionToken as createToken,
   verifySessionToken,
 } from "@/lib/session";
+import { isPasswordHash, verifyPassword } from "@/lib/password";
 
 export { AUTH_COOKIE };
 
@@ -13,6 +14,9 @@ function getSecret() {
   if (!secret) {
     throw new Error("Missing AUTH_SECRET environment variable.");
   }
+  if (secret.length < 32) {
+    throw new Error("AUTH_SECRET must be at least 32 characters.");
+  }
   return secret;
 }
 
@@ -20,10 +24,24 @@ export async function createSessionToken() {
   return createToken(getSecret());
 }
 
-export function checkDashboardPassword(password: string) {
+/**
+ * Prefer DASHBOARD_PASSWORD_HASH (pbkdf2$...).
+ * Plain DASHBOARD_PASSWORD is only accepted in non-production for local bootstrapping.
+ */
+export async function checkDashboardPassword(password: string) {
+  if (!password) return false;
+
+  const hash = process.env.DASHBOARD_PASSWORD_HASH;
+  if (isPasswordHash(hash)) {
+    return verifyPassword(password, hash);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
   const expected = process.env.DASHBOARD_PASSWORD ?? "";
-  if (!expected || !password) return false;
-  if (expected.length !== password.length) return false;
+  if (!expected || expected.length !== password.length) return false;
 
   let mismatch = 0;
   for (let i = 0; i < expected.length; i += 1) {
@@ -34,7 +52,10 @@ export function checkDashboardPassword(password: string) {
 
 export async function isAuthenticated() {
   const jar = await cookies();
-  return verifySessionToken(jar.get(AUTH_COOKIE)?.value, process.env.AUTH_SECRET);
+  return verifySessionToken(
+    jar.get(AUTH_COOKIE)?.value,
+    process.env.AUTH_SECRET,
+  );
 }
 
 export async function sessionCookieOptions() {
