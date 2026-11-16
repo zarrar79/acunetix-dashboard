@@ -194,8 +194,116 @@ function assertStrict(
  * - Continuous scanning: enabled
  * - Report: Comprehensive (new)
  */
+async function applyStrictDefaultsAndScan(targetId: string, address: string) {
+  // Enforce Critical business criticality
+  await acunetixFetch(`/api/v1/targets/${targetId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      criticality: BUSINESS_CRITICALITY_CRITICAL,
+    }),
+  });
+
+  // Scan speed: slow
+  await acunetixFetch(`/api/v1/targets/${targetId}/configuration`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      scan_speed: "slow",
+      default_scanning_profile_id: FULL_SCAN_PROFILE_ID,
+    }),
+  });
+
+  // Continuous scanning: checked/enabled
+  await acunetixFetch(`/api/v1/targets/${targetId}/continuous_scan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled: true }),
+  });
+
+  // Start scan with Comprehensive (new) report
+  const scan = await acunetixFetch<CreatedScan>("/api/v1/scans", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      target_id: targetId,
+      profile_id: FULL_SCAN_PROFILE_ID,
+      report_template_id: COMPREHENSIVE_NEW_REPORT_ID,
+      schedule: {
+        disable: false,
+        start_date: null,
+        time_sensitive: false,
+      },
+    }),
+  });
+
+  const [targetDetails, configuration, continuous, scanDetails] =
+    await Promise.all([
+      acunetixFetch<TargetDetails>(`/api/v1/targets/${targetId}`),
+      acunetixFetch<TargetConfiguration>(
+        `/api/v1/targets/${targetId}/configuration`,
+      ),
+      acunetixFetch<ContinuousScanSetting>(
+        `/api/v1/targets/${targetId}/continuous_scan`,
+      ),
+      acunetixFetch<CreatedScan>(`/api/v1/scans/${scan.scan_id}`),
+    ]);
+
+  assertStrict(
+    targetDetails.criticality === BUSINESS_CRITICALITY_CRITICAL,
+    `Business criticality must be Critical, got ${targetDetails.criticality}`,
+  );
+  assertStrict(
+    configuration.scan_speed === "slow",
+    `Scan speed must be slow, got ${configuration.scan_speed}`,
+  );
+  assertStrict(
+    continuous.enabled === true && targetDetails.continuous_mode === true,
+    "Continuous scanning must be enabled",
+  );
+  assertStrict(
+    scanDetails.report_template_id === COMPREHENSIVE_NEW_REPORT_ID,
+    `Report must be Comprehensive (new), got ${scanDetails.report_template_id}`,
+  );
+
+  return {
+    target: targetDetails,
+    scanId: scan.scan_id,
+    settings: {
+      address,
+      scanSpeed: "slow" as const,
+      businessCriticality: "Critical" as const,
+      continuousScanning: true as const,
+      report: "Comprehensive (new)" as const,
+    },
+  };
+}
+
+export function normalizeTargetAddresses(rawAddresses: string[]) {
+  const seen = new Set<string>();
+  const addresses: string[] = [];
+
+  for (const raw of rawAddresses) {
+    const value = raw
+      .replace(/^\uFEFF/, "")
+      .split(",")[0]
+      ?.trim()
+      .replace(/^["']|["']$/g, "");
+    if (!value) continue;
+    if (/^address$/i.test(value) || /^url$/i.test(value)) continue;
+
+    const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    addresses.push(normalized);
+  }
+
+  return addresses;
+}
+
 export async function createTargetWithDefaults(address: string) {
-  const trimmed = address.trim();
+  const [trimmed] = normalizeTargetAddresses([address]);
   if (!trimmed) {
     throw new Error("Address is required");
   }
@@ -223,88 +331,93 @@ export async function createTargetWithDefaults(address: string) {
     throw new Error("Acunetix did not return a target id");
   }
 
-  // Enforce Critical business criticality (in case create ignored it)
-  await acunetixFetch(`/api/v1/targets/${target.target_id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      criticality: BUSINESS_CRITICALITY_CRITICAL,
-    }),
-  });
+  return applyStrictDefaultsAndScan(target.target_id, trimmed);
+}
 
-  // Scan speed: slow
-  await acunetixFetch(`/api/v1/targets/${target.target_id}/configuration`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      scan_speed: "slow",
-      default_scanning_profile_id: FULL_SCAN_PROFILE_ID,
-    }),
-  });
+export type BulkTargetResult = {
+  address: string;
+  ok: boolean;
+  targetId?: string;
+  scanId?: string;
+  error?: string;
+};
 
-  // Continuous scanning: checked/enabled
-  await acunetixFetch(`/api/v1/targets/${target.target_id}/continuous_scan`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ enabled: true }),
-  });
+export async function createTargetsBulk(rawAddresses: string[]) {
+  const addresses = normalizeTargetAddresses(rawAddresses);
+  if (addresses.length === 0) {
+    throw new Error("No valid URLs found in the upload");
+  }
+  if (addresses.length > 50) {
+    throw new Error("Bulk upload is limited to 50 URLs at a time");
+  }
 
-  // Start scan with Comprehensive (new) report
-  const scan = await acunetixFetch<CreatedScan>("/api/v1/scans", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      target_id: target.target_id,
-      profile_id: FULL_SCAN_PROFILE_ID,
-      report_template_id: COMPREHENSIVE_NEW_REPORT_ID,
-      schedule: {
-        disable: false,
-        start_date: null,
-        time_sensitive: false,
-      },
-    }),
-  });
-
-  // Verify every required setting was actually applied
-  const [targetDetails, configuration, continuous, scanDetails] =
-    await Promise.all([
-      acunetixFetch<TargetDetails>(`/api/v1/targets/${target.target_id}`),
-      acunetixFetch<TargetConfiguration>(
-        `/api/v1/targets/${target.target_id}/configuration`,
-      ),
-      acunetixFetch<ContinuousScanSetting>(
-        `/api/v1/targets/${target.target_id}/continuous_scan`,
-      ),
-      acunetixFetch<CreatedScan>(`/api/v1/scans/${scan.scan_id}`),
-    ]);
-
-  assertStrict(
-    targetDetails.criticality === BUSINESS_CRITICALITY_CRITICAL,
-    `Business criticality must be Critical, got ${targetDetails.criticality}`,
+  const created = await acunetixFetch<{ targets: CreatedTarget[] }>(
+    "/api/v1/targets/add",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targets: addresses.map((address) => ({
+          address,
+          description: "",
+          type: "default",
+          criticality: BUSINESS_CRITICALITY_CRITICAL,
+        })),
+      }),
+    },
   );
-  assertStrict(
-    configuration.scan_speed === "slow",
-    `Scan speed must be slow, got ${configuration.scan_speed}`,
+
+  const createdTargets = created.targets ?? [];
+  const byAddress = new Map(
+    createdTargets.map((target) => [target.address.toLowerCase(), target]),
   );
-  assertStrict(
-    continuous.enabled === true && targetDetails.continuous_mode === true,
-    "Continuous scanning must be enabled",
-  );
-  assertStrict(
-    scanDetails.report_template_id === COMPREHENSIVE_NEW_REPORT_ID,
-    `Report must be Comprehensive (new), got ${scanDetails.report_template_id}`,
-  );
+
+  const results: BulkTargetResult[] = [];
+
+  for (const address of addresses) {
+    const target =
+      byAddress.get(address.toLowerCase()) ||
+      createdTargets.find(
+        (item) =>
+          item.address.toLowerCase().replace(/\/$/, "") ===
+          address.toLowerCase().replace(/\/$/, ""),
+      );
+
+    if (!target?.target_id) {
+      results.push({
+        address,
+        ok: false,
+        error: "Target was not created in Acunetix",
+      });
+      continue;
+    }
+
+    try {
+      const configured = await applyStrictDefaultsAndScan(
+        target.target_id,
+        address,
+      );
+      results.push({
+        address,
+        ok: true,
+        targetId: configured.target.target_id,
+        scanId: configured.scanId,
+      });
+    } catch (error) {
+      results.push({
+        address,
+        ok: false,
+        targetId: target.target_id,
+        error: error instanceof Error ? error.message : "Failed to configure",
+      });
+    }
+  }
 
   return {
-    target: targetDetails,
-    scanId: scan.scan_id,
-    settings: {
-      address: trimmed,
-      scanSpeed: "slow",
-      businessCriticality: "Critical",
-      continuousScanning: true,
-      report: "Comprehensive (new)",
-    },
+    total: addresses.length,
+    succeeded: results.filter((item) => item.ok).length,
+    failed: results.filter((item) => !item.ok).length,
+    results,
   };
 }
 

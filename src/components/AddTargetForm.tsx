@@ -1,14 +1,17 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 type AddTargetFormProps = {
   onCreated?: () => void;
 };
 
 export function AddTargetForm({ onCreated }: AddTargetFormProps) {
+  const fileRef = useRef<HTMLInputElement>(null);
   const [address, setAddress] = useState("");
+  const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -27,7 +30,6 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
       const payload = (await response.json()) as {
         error?: string;
         target?: { target_id?: string; address?: string };
-        scanId?: string;
       };
 
       if (!response.ok) {
@@ -43,6 +45,46 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
       setError("Could not reach the dashboard API");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onBulkUpload(file: File) {
+    setBulkLoading(true);
+    setError("");
+    setSuccess("");
+    setFileName(file.name);
+
+    try {
+      const form = new FormData();
+      form.append("file", file);
+
+      const response = await fetch("/api/targets/bulk", {
+        method: "POST",
+        body: form,
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        total?: number;
+        succeeded?: number;
+        failed?: number;
+      };
+
+      if (!response.ok) {
+        setError(payload.error || "Bulk upload failed");
+        setBulkLoading(false);
+        return;
+      }
+
+      setSuccess(
+        `Bulk done: ${payload.succeeded || 0}/${payload.total || 0} started` +
+          (payload.failed ? `, ${payload.failed} failed` : ""),
+      );
+      onCreated?.();
+    } catch {
+      setError("Could not upload the URL file");
+    } finally {
+      setBulkLoading(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -62,12 +104,36 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
         />
         <button
           type="submit"
-          disabled={loading || !address.trim()}
+          disabled={loading || bulkLoading || !address.trim()}
           className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "Adding…" : "Add"}
         </button>
       </form>
+
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".txt,.csv,text/plain,text/csv"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void onBulkUpload(file);
+          }}
+        />
+        <button
+          type="button"
+          disabled={loading || bulkLoading}
+          onClick={() => fileRef.current?.click()}
+          className="rounded-lg border border-[var(--line)] bg-white/80 px-3 py-1.5 text-xs font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {bulkLoading ? "Uploading…" : "Bulk upload URLs"}
+        </button>
+        <span className="truncate text-[11px] text-[var(--muted)]">
+          {fileName || ".txt / .csv — one URL per line"}
+        </span>
+      </div>
 
       {error ? (
         <p className="mt-2 text-xs text-[var(--danger)]">{error}</p>

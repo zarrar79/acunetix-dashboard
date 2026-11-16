@@ -9,7 +9,8 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/api/scans") ||
-    pathname.startsWith("/api/targets")
+    pathname === "/api/targets" ||
+    pathname.startsWith("/api/targets/")
   ) {
     if (!authed) {
       if (pathname.startsWith("/api/")) {
