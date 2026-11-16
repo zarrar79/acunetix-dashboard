@@ -1,7 +1,7 @@
 {
-  "tunnelUp": true,
-  "publicUrl": "https://impression-injured-acid-international.trycloudflare.com",
-  "at": 1794857589753,
+  "tunnelUp": false,
+  "publicUrl": null,
+  "at": 1794857592982,
   "error": null,
-  "result": "Tunnel already up at https://impression-injured-acid-international.trycloudflare.com"
+  "result": "Tunnel stopped. Public URL is offline until Start (new URL next time)."
 }
