@@ -1,7 +1,7 @@
 {
-  "tunnelUp": true,
-  "publicUrl": "https://convinced-rapidly-palmer-ladies.trycloudflare.com",
-  "at": 1794857242149,
+  "tunnelUp": false,
+  "publicUrl": null,
+  "at": 1794857246178,
   "error": null,
-  "result": null
+  "result": "Starting tunnel (attempt 1/8)…"
 }
