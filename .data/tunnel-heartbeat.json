@@ -1,7 +1,7 @@
 {
-  "tunnelUp": true,
-  "publicUrl": "https://ensemble-updating-governmental-concern.trycloudflare.com",
-  "at": 1794858940874,
+  "tunnelUp": false,
+  "publicUrl": null,
+  "at": 1794858944386,
   "error": null,
-  "result": "Tunnel already up at https://ensemble-updating-governmental-concern.trycloudflare.com"
+  "result": "Tunnel stopped. Public URL is offline until Start (new URL next time)."
 }
