@@ -1,7 +1,7 @@
 {
-  "tunnelUp": false,
-  "publicUrl": null,
-  "at": 1794857361351,
+  "tunnelUp": true,
+  "publicUrl": "https://ashley-topics-tobacco-blue.trycloudflare.com",
+  "at": 1794857368402,
   "error": null,
-  "result": "Starting tunnel (attempt 3/8)…"
+  "result": "Tunnel started: https://ashley-topics-tobacco-blue.trycloudflare.com"
 }
