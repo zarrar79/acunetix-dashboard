@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  --bg0: #f3f6f4;
+  --bg1: #e7efea;
+  --ink: #14201b;
+  --muted: #5b6b64;
+  --line: #c9d7cf;
+  --panel: rgba(255, 255, 255, 0.72);
+  --accent: #0f8f6c;
+  --accent-deep: #0b6a51;
+  --warn: #c47a12;
+  --danger: #c0392b;
+  --ok: #1f7a4c;
+  --info: #2f6fed;
+}
+
+@theme inline {
+  --color-background: var(--bg0);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-body), sans-serif;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #d7efe4 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #dce8f5 0%, transparent 50%),
+    linear-gradient(180deg, var(--bg0), var(--bg1));
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(20, 32, 27, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 32, 27, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(circle at 50% 20%, black, transparent 75%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.55;
+  }
+}
+
+@keyframes bar-fill {
+  from {
+    width: 0%;
+  }
+}
+
+.rise {
+  animation: rise-in 0.55s ease both;
+}
+
+.rise-delay-1 {
+  animation-delay: 0.08s;
+}
+
+.rise-delay-2 {
+  animation-delay: 0.16s;
+}
+
+.rise-delay-3 {
+  animation-delay: 0.24s;
+}
+
+.live-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+.progress-fill {
+  animation: bar-fill 0.7s ease both;
+}
