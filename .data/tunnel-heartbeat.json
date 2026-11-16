@@ -1,7 +1,7 @@
 {
-  "tunnelUp": false,
-  "publicUrl": null,
-  "at": 1794859103094,
+  "tunnelUp": true,
+  "publicUrl": "https://porcelain-authorized-lindsay-boost.trycloudflare.com",
+  "at": 1794859113271,
   "error": null,
-  "result": "Tunnel stopped. Public URL is offline until Start (new URL next time)."
+  "result": "Tunnel started: https://porcelain-authorized-lindsay-boost.trycloudflare.com"
 }
