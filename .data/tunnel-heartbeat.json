@@ -1,7 +1,7 @@
 {
   "tunnelUp": true,
   "publicUrl": "https://texas-invitation-removable-favorites.trycloudflare.com",
-  "at": 1794856809905,
-  "error": null,
-  "result": "Tunnel restored"
+  "at": 1794856812711,
+  "error": "Timed out waiting for trycloudflare URL",
+  "result": null
 }
