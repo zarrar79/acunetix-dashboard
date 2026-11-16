@@ -1,32 +1,27 @@
 #!/usr/bin/env node
 /**
- * Daybreak tunnel agent — runs on the PC.
- * Polls the Vercel dashboard for start/stop commands, verifies the sudo
- * password locally, then brings cloudflared up or down.
+ * Daybreak tunnel agent — runs on the PC (prefer systemd user service).
  *
- * Env (required):
- *   TUNNEL_AGENT_TOKEN   shared secret with Vercel
- *   DASHBOARD_URL        e.g. https://acunetix-dashboard.vercel.app
+ * - Polls dashboard for start/stop
+ * - Verifies sudo password once on Start/Stop
+ * - Auto-retries cloudflared when Cloudflare times out
+ * - Auto-restarts tunnel if it dies while desiredUp=true (no AI / no re-approval)
  *
- * Optional:
- *   CLOUDFLARED_BIN      default: cloudflared
- *   ACUNETIX_ORIGIN      default: https://127.0.0.1:3443
- *   AGENT_LOG            default: /tmp/daybreak-tunnel-agent.log
+ * Env:
+ *   TUNNEL_AGENT_TOKEN, DASHBOARD_URL (required)
+ *   CLOUDFLARED_BIN, ACUNETIX_ORIGIN, AGENT_LOG, CLOUDFLARED_LOG
+ *   START_MAX_ATTEMPTS (default 8)
+ *   START_RETRY_MS (default 5000)
  */
 import { spawn, execFile, execFileSync } from "node:child_process";
-import {
-  createWriteStream,
-  writeFileSync,
-  mkdirSync,
-  readFileSync,
-} from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { webcrypto } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 
-const execFileAsync = promisify(execFile); // used for pkill
+const execFileAsync = promisify(execFile);
 
 const DASHBOARD_URL = (process.env.DASHBOARD_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.TUNNEL_AGENT_TOKEN || "";
@@ -37,6 +32,8 @@ const CF_LOG = process.env.CLOUDFLARED_LOG || "/tmp/cloudflared-acunetix.log";
 const STATE_FILE =
   process.env.TUNNEL_STATE_FILE ||
   join(homedir(), ".daybreak-tunnel-state.json");
+const START_MAX_ATTEMPTS = Number(process.env.START_MAX_ATTEMPTS || 8);
+const START_RETRY_MS = Number(process.env.START_RETRY_MS || 5000);
 
 if (!DASHBOARD_URL || !TOKEN) {
   console.error("Set DASHBOARD_URL and TUNNEL_AGENT_TOKEN");
@@ -47,6 +44,9 @@ let cloudflaredProc = null;
 let publicUrl = null;
 let lastError = null;
 let lastResult = null;
+/** When true, agent keeps cloudflared up without asking again. */
+let desiredUp = false;
+let starting = false;
 
 function log(...args) {
   const line = `[${new Date().toISOString()}] ${args.join(" ")}`;
@@ -58,15 +58,26 @@ function log(...args) {
   }
 }
 
+function loadState() {
+  try {
+    if (!existsSync(STATE_FILE)) return;
+    const data = JSON.parse(readFileSync(STATE_FILE, "utf8"));
+    desiredUp = Boolean(data.desiredUp);
+    publicUrl = data.publicUrl || null;
+  } catch {
+    /* ignore */
+  }
+}
+
 function saveState() {
   try {
-    mkdirSync(join(homedir()), { recursive: true });
     writeFileSync(
       STATE_FILE,
       JSON.stringify(
         {
-          publicUrl,
-          tunnelUp: Boolean(cloudflaredProc && !cloudflaredProc.killed),
+          desiredUp,
+          publicUrl: desiredUp ? publicUrl : null,
+          tunnelUp: tunnelUp(),
           updatedAt: new Date().toISOString(),
         },
         null,
@@ -108,6 +119,9 @@ async function api(path, init = {}) {
 function readLatestUrl() {
   try {
     const text = readFileSync(CF_LOG, "utf8");
+    if (/failed to request quick Tunnel|deadline exceeded/i.test(text)) {
+      return null;
+    }
     const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/gi);
     if (match?.length) return match[match.length - 1];
   } catch {
@@ -116,20 +130,25 @@ function readLatestUrl() {
   return null;
 }
 
-function cloudflaredRunning() {
+function cloudflaredPids() {
   try {
-    execFileSync("pgrep", ["-f", "cloudflared tunnel --url"], {
-      stdio: "ignore",
-    });
-    return true;
+    const out = execFileSync(
+      "pgrep",
+      ["-f", "cloudflared tunnel --url https://127.0.0.1:3443"],
+      { encoding: "utf8" },
+    );
+    return out
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
   } catch {
-    return false;
+    return [];
   }
 }
 
 function tunnelUp() {
   if (cloudflaredProc && cloudflaredProc.exitCode === null) return true;
-  return cloudflaredRunning();
+  return cloudflaredPids().length > 0;
 }
 
 async function heartbeat(extra = {}) {
@@ -187,39 +206,59 @@ function verifySudoPassword(password) {
   });
 }
 
-async function stopTunnel(password) {
-  const ok = await verifySudoPassword(password);
-  if (!ok) throw new Error("PC password rejected by sudo");
-
-  // Authorized: stop cloudflared (does not need root after verification)
+async function killCloudflared() {
   if (cloudflaredProc && cloudflaredProc.exitCode === null) {
-    cloudflaredProc.kill("SIGTERM");
-    await sleep(800);
-    if (cloudflaredProc.exitCode === null) cloudflaredProc.kill("SIGKILL");
+    try {
+      cloudflaredProc.kill("SIGTERM");
+    } catch {
+      /* ignore */
+    }
+    await sleep(700);
+    if (cloudflaredProc && cloudflaredProc.exitCode === null) {
+      try {
+        cloudflaredProc.kill("SIGKILL");
+      } catch {
+        /* ignore */
+      }
+    }
   }
   cloudflaredProc = null;
-
   try {
-    await execFileAsync("pkill", ["-f", "cloudflared tunnel --url"]);
+    await execFileAsync("pkill", [
+      "-f",
+      "cloudflared tunnel --url https://127.0.0.1:3443",
+    ]);
   } catch {
-    /* no matching process */
+    /* none */
   }
-
-  publicUrl = null;
-  lastError = null;
-  lastResult = "Tunnel stopped";
-  saveState();
-  log("tunnel stopped");
+  await sleep(400);
 }
 
-function waitForUrl(timeoutMs = 45_000) {
+function waitForUrlOrFail(timeoutMs = 50_000) {
   return new Promise((resolve, reject) => {
     const started = Date.now();
-    const timer = setInterval(async () => {
+    const timer = setInterval(() => {
       try {
-        const { readFileSync } = await import("node:fs");
         const text = readFileSync(CF_LOG, "utf8");
-        const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/gi);
+        if (
+          /failed to request quick Tunnel|context deadline exceeded/i.test(
+            text,
+          )
+        ) {
+          clearInterval(timer);
+          reject(new Error("cloudflared failed to create quick tunnel"));
+          return;
+        }
+        if (cloudflaredProc && cloudflaredProc.exitCode !== null) {
+          clearInterval(timer);
+          reject(
+            new Error(`cloudflared exited early (code ${cloudflaredProc.exitCode})`),
+          );
+          return;
+        }
+        const match = text.match(
+          /https:\/\/[a-z0-9-]+\.trycloudflare\.com/gi,
+        );
         if (match?.length) {
           clearInterval(timer);
           resolve(match[match.length - 1]);
@@ -236,24 +275,14 @@ function waitForUrl(timeoutMs = 45_000) {
   });
 }
 
-async function startTunnel(password) {
-  const ok = await verifySudoPassword(password);
-  if (!ok) throw new Error("PC password rejected by sudo");
-
-  if (tunnelUp()) {
-    lastResult = `Tunnel already up at ${publicUrl}`;
-    return;
-  }
-
-  // Clear old log so we detect the new URL
+function spawnCloudflared() {
   try {
     writeFileSync(CF_LOG, "");
   } catch {
     /* ignore */
   }
 
-  const out = createWriteStream(CF_LOG, { flags: "a" });
-  cloudflaredProc = spawn(
+  const child = spawn(
     CLOUDFLARED,
     [
       "tunnel",
@@ -268,23 +297,107 @@ async function startTunnel(password) {
       "info",
     ],
     {
-      detached: false,
-      stdio: ["ignore", "ignore", "ignore"],
+      detached: true,
+      stdio: "ignore",
     },
   );
-  cloudflaredProc.on("exit", (code) => {
+  child.unref();
+  cloudflaredProc = child;
+  child.on("exit", (code) => {
     log(`cloudflared exited code=${code}`);
-    cloudflaredProc = null;
+    if (cloudflaredProc === child) cloudflaredProc = null;
     publicUrl = null;
     saveState();
   });
-  out.end();
+  return child;
+}
 
-  publicUrl = await waitForUrl();
+/**
+ * Bring tunnel up with automatic retries. No Cursor/AI involvement.
+ * Password only required when called from dashboard Start (authorization gate).
+ */
+async function ensureTunnelUp({ requirePassword, password } = {}) {
+  if (starting) {
+    log("start already in progress");
+    return;
+  }
+  starting = true;
+  try {
+    if (requirePassword) {
+      const ok = await verifySudoPassword(password || "");
+      if (!ok) throw new Error("PC password rejected by sudo");
+    }
+
+    desiredUp = true;
+    saveState();
+
+    if (tunnelUp()) {
+      publicUrl = readLatestUrl() || publicUrl;
+      if (publicUrl) {
+        lastError = null;
+        lastResult = `Tunnel already up at ${publicUrl}`;
+        saveState();
+        return;
+      }
+      // Running but no URL yet — kill and retry fresh
+      await killCloudflared();
+    }
+
+    let lastFail = "unknown";
+    for (let attempt = 1; attempt <= START_MAX_ATTEMPTS; attempt += 1) {
+      log(`cloudflared start attempt ${attempt}/${START_MAX_ATTEMPTS}`);
+      lastResult = `Starting tunnel (attempt ${attempt}/${START_MAX_ATTEMPTS})…`;
+      lastError = null;
+      try {
+        await heartbeat();
+      } catch {
+        /* continue */
+      }
+
+      await killCloudflared();
+      spawnCloudflared();
+
+      try {
+        publicUrl = await waitForUrlOrFail(50_000);
+        lastError = null;
+        lastResult = `Tunnel started: ${publicUrl}`;
+        saveState();
+        log("tunnel started", publicUrl);
+        await heartbeat();
+        return;
+      } catch (error) {
+        lastFail = error instanceof Error ? error.message : String(error);
+        lastError = `${lastFail} — retrying…`;
+        log("start attempt failed", lastFail);
+        await killCloudflared();
+        if (attempt < START_MAX_ATTEMPTS) {
+          await sleep(START_RETRY_MS);
+        }
+      }
+    }
+
+    desiredUp = true; // keep wanting up; watchdog will keep trying
+    lastError = `Start failed after ${START_MAX_ATTEMPTS} attempts: ${lastFail}`;
+    lastResult = null;
+    saveState();
+    throw new Error(lastError);
+  } finally {
+    starting = false;
+  }
+}
+
+async function stopTunnel(password) {
+  const ok = await verifySudoPassword(password);
+  if (!ok) throw new Error("PC password rejected by sudo");
+
+  desiredUp = false;
+  await killCloudflared();
+  publicUrl = null;
   lastError = null;
-  lastResult = `Tunnel started: ${publicUrl}`;
+  lastResult =
+    "Tunnel stopped. Public URL is offline until Start (new URL next time).";
   saveState();
-  log("tunnel started", publicUrl);
+  log("tunnel stopped");
 }
 
 async function handleCommand(command) {
@@ -295,7 +408,7 @@ async function handleCommand(command) {
   }
 
   if (command.action === "start") {
-    await startTunnel(payload.password);
+    await ensureTunnelUp({ requirePassword: true, password: payload.password });
   } else if (command.action === "stop") {
     await stopTunnel(payload.password);
   } else {
@@ -303,10 +416,43 @@ async function handleCommand(command) {
   }
 }
 
+/** If tunnel should be up but died, restart automatically (no password, no AI). */
+async function watchdog() {
+  if (!desiredUp || starting) return;
+  if (tunnelUp()) {
+    if (!publicUrl) publicUrl = readLatestUrl();
+    return;
+  }
+  log("watchdog: desiredUp but tunnel down — auto-restarting");
+  lastResult = "Auto-restarting tunnel…";
+  try {
+    await ensureTunnelUp({ requirePassword: false });
+  } catch (error) {
+    lastError = error instanceof Error ? error.message : String(error);
+    log("watchdog restart failed", lastError);
+  }
+}
+
 async function main() {
-  log("agent starting", DASHBOARD_URL);
+  loadState();
+  log("agent starting", DASHBOARD_URL, `desiredUp=${desiredUp}`);
+
+  // Resume previous desired state without waiting for dashboard/AI
+  if (desiredUp && !tunnelUp()) {
+    log("resuming desired tunnel state with auto-retry");
+    try {
+      await ensureTunnelUp({ requirePassword: false });
+    } catch (error) {
+      log(
+        "initial resume failed (will keep retrying via watchdog)",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
   for (;;) {
     try {
+      await watchdog();
       await heartbeat();
       const polled = await api("/api/tunnel/agent/poll");
       if (polled?.command) {

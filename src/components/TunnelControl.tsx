@@ -120,8 +120,8 @@ export function TunnelControl() {
             Cloudflare tunnel
           </p>
           <p className="mt-0.5 text-xs text-[var(--muted)]">
-            Start creates a new public URL. Stop kills it (old URL will not
-            work). PC sudo password is checked on your machine.
+            Start creates a new public URL (PC agent auto-retries if Cloudflare
+            fails). Stop kills it. Sudo password is checked only on your PC.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[10px] font-[family-name:var(--font-mono)] uppercase tracking-wide">
