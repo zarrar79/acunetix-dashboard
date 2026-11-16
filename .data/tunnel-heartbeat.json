@@ -1,7 +1,7 @@
 {
-  "tunnelUp": true,
-  "publicUrl": "https://consideration-quick-culture-florists.trycloudflare.com",
-  "at": 1794857427192,
+  "tunnelUp": false,
+  "publicUrl": null,
+  "at": 1794857431569,
   "error": null,
-  "result": "Tunnel started: https://consideration-quick-culture-florists.trycloudflare.com"
+  "result": "Tunnel stopped. Public URL is offline until Start (new URL next time)."
 }
