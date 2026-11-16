@@ -241,13 +241,16 @@ export function DashboardClient() {
           </h1>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <button
-            type="button"
-            onClick={() => void load(true)}
-            className="rounded-md border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 font-[family-name:var(--font-mono)] text-xs tracking-wide text-[var(--ink)] uppercase transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <TunnelControl />
+            <button
+              type="button"
+              onClick={() => void load(true)}
+              className="rounded-md border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 font-[family-name:var(--font-mono)] text-xs tracking-wide text-[var(--ink)] uppercase transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => void logout()}
@@ -264,20 +267,11 @@ export function DashboardClient() {
         </div>
       ) : null}
 
-      {tunnelDown ? (
-        <div className="rise rounded-xl border border-[color-mix(in_srgb,var(--warn)_45%,var(--line))] bg-[color-mix(in_srgb,var(--warn)_12%,var(--panel))] px-3 py-2 text-sm text-[var(--warn)]">
-          Acunetix tunnel looks down. Use Tunnel controls below, or keep
-          Acunetix and cloudflared running on your PC.
-        </div>
-      ) : null}
-
       {error ? (
         <div className="rise rounded-2xl border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel))] p-4 text-sm text-[var(--danger)]">
           {error}
         </div>
       ) : null}
-
-      <TunnelControl />
 
       <section className="rise toolbar-card grid grid-cols-1 gap-2 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-2 backdrop-blur md:grid-cols-[minmax(0,1fr)_14rem] md:items-center">
         <AddTargetForm onCreated={() => void load(true)} />

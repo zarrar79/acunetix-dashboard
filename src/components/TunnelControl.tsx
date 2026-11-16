@@ -12,11 +12,13 @@ type TunnelStatus = {
   pendingAction: "start" | "stop" | null;
 };
 
+type ModalMode = "start" | "stop" | null;
+
 export function TunnelControl() {
   const [status, setStatus] = useState<TunnelStatus | null>(null);
+  const [modal, setModal] = useState<ModalMode>(null);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
@@ -39,9 +41,7 @@ export function TunnelControl() {
   async function waitForState(
     predicate: (s: TunnelStatus) => boolean,
     timeoutMs: number,
-    pendingMsg: string,
   ) {
-    setMessage(pendingMsg);
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
       const latest = await refresh();
@@ -51,21 +51,18 @@ export function TunnelControl() {
     return null;
   }
 
-  async function onSubmit(event: FormEvent, action: "start" | "stop") {
+  async function onConfirm(event: FormEvent) {
     event.preventDefault();
+    if (!modal) return;
     setBusy(true);
     setError("");
-    setMessage("");
     try {
       const response = await fetch("/api/tunnel/control", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, password }),
+        body: JSON.stringify({ action: modal, password }),
       });
-      const data = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
+      const data = (await response.json()) as { error?: string };
       if (!response.ok) {
         setError(data.error || "Tunnel control failed");
         setBusy(false);
@@ -73,34 +70,28 @@ export function TunnelControl() {
       }
 
       setPassword("");
+      const action = modal;
 
       if (action === "start") {
         const ready = await waitForState(
           (s) => Boolean(s.tunnelUp && s.publicUrl),
           90_000,
-          "Starting tunnel… waiting for new public URL…",
         );
-        if (ready?.publicUrl) {
-          setMessage(`Tunnel up: ${ready.publicUrl}`);
-        } else {
-          setError(
-            "Tunnel start timed out. Check the PC agent / cloudflared logs.",
-          );
+        if (!ready?.publicUrl) {
+          setError("Start timed out. Check tunnel-ctl on the PC.");
+          setBusy(false);
+          return;
         }
       } else {
-        const down = await waitForState(
-          (s) => !s.tunnelUp,
-          60_000,
-          "Stopping tunnel…",
-        );
-        if (down && !down.tunnelUp) {
-          setMessage(
-            "Tunnel down. Public URL is offline until you Start again (a new URL will be created).",
-          );
-        } else {
-          setError("Stop timed out. Check the PC agent.");
+        const down = await waitForState((s) => !s.tunnelUp, 60_000);
+        if (!down || down.tunnelUp) {
+          setError("Stop timed out. Check tunnel-ctl on the PC.");
+          setBusy(false);
+          return;
         }
       }
+
+      setModal(null);
     } catch {
       setError("Could not reach tunnel control API");
     } finally {
@@ -109,109 +100,142 @@ export function TunnelControl() {
     }
   }
 
-  const agentOnline = status?.agentOnline ?? false;
   const tunnelUp = status?.tunnelUp ?? false;
+  const agentOnline = status?.agentOnline ?? false;
 
   return (
-    <section className="rise rounded-xl border border-[var(--line)] bg-[var(--panel)] p-3 backdrop-blur">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-[family-name:var(--font-display)] text-sm font-semibold text-[var(--ink)]">
-            Cloudflare tunnel
-          </p>
-          <p className="mt-0.5 text-xs text-[var(--muted)]">
-            Controlled by a hardcoded script on your PC (
-            <code>tunnel-ctl.mjs</code>). Your sudo password is verified on the
-            PC only — no AI involved. Start makes a new public URL; Stop kills
-            it.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-[10px] font-[family-name:var(--font-mono)] uppercase tracking-wide">
-          <span
-            className={`rounded-full border px-2 py-1 ${
-              agentOnline
-                ? "border-[color-mix(in_srgb,var(--ok)_45%,var(--line))] text-[var(--ok)]"
-                : "border-[var(--line)] text-[var(--muted)]"
-            }`}
-          >
-            Agent {agentOnline ? "online" : "offline"}
-          </span>
-          <span
-            className={`rounded-full border px-2 py-1 ${
-              tunnelUp
-                ? "border-[color-mix(in_srgb,var(--accent)_45%,var(--line))] text-[var(--accent)]"
-                : "border-[var(--line)] text-[var(--muted)]"
-            }`}
-          >
-            Tunnel {tunnelUp ? "up" : "down"}
-          </span>
-        </div>
+    <>
+      <div className="flex items-center gap-2">
+        <span
+          className={`tunnel-blink inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
+            tunnelUp
+              ? "bg-[var(--ok)]"
+              : agentOnline
+                ? "bg-[var(--warn)]"
+                : "bg-[var(--danger)]"
+          }`}
+          title={
+            tunnelUp
+              ? "Tunnel running"
+              : agentOnline
+                ? "Tunnel stopped"
+                : "PC tunnel script offline"
+          }
+          aria-label={tunnelUp ? "Tunnel up" : "Tunnel down"}
+        />
+        <button
+          type="button"
+          disabled={!agentOnline || busy}
+          onClick={() => {
+            setError("");
+            setPassword("");
+            setModal(tunnelUp ? "stop" : "start");
+          }}
+          className={`rounded-md border px-3 py-1.5 font-[family-name:var(--font-mono)] text-xs tracking-wide uppercase transition disabled:opacity-40 ${
+            tunnelUp
+              ? "border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel-solid))] text-[var(--danger)] hover:border-[var(--danger)]"
+              : "border-[var(--line)] bg-[var(--panel-solid)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          }`}
+        >
+          {tunnelUp ? "Stop tunnel" : "Start tunnel"}
+        </button>
       </div>
 
-      {tunnelUp && status?.publicUrl ? (
-        <p className="mt-2 break-all font-[family-name:var(--font-mono)] text-[11px] text-[var(--accent)]">
-          Live URL: {status.publicUrl}
-        </p>
-      ) : (
-        <p className="mt-2 text-[11px] text-[var(--muted)]">
-          No live public URL right now.
-        </p>
-      )}
+      {modal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tunnel-modal-title"
+          onClick={() => {
+            if (!busy) setModal(null);
+          }}
+        >
+          <form
+            onSubmit={(event) => void onConfirm(event)}
+            onClick={(event) => event.stopPropagation()}
+            className="flex w-full max-w-sm flex-col items-center rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] px-6 py-8 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+          >
+            <div
+              className={`tunnel-blink mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 ${
+                modal === "start"
+                  ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)]"
+                  : "border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_18%,transparent)] text-[var(--danger)]"
+              }`}
+              aria-hidden
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-8 w-8"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
+                <circle cx="12" cy="8" r="3.2" />
+                <path d="M5.5 19c1.6-3.2 4-4.8 6.5-4.8S16.9 15.8 18.5 19" />
+              </svg>
+            </div>
 
-      <form className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="PC sudo / root password"
-          aria-label="PC sudo password"
-          className="field w-full px-2.5 py-1.5 text-sm sm:max-w-xs"
-        />
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={busy || !agentOnline || !password}
-            onClick={(event) => void onSubmit(event, "start")}
-            className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06261c] disabled:opacity-50"
-          >
-            {busy ? "Working…" : "Start"}
-          </button>
-          <button
-            type="button"
-            disabled={busy || !agentOnline || !password}
-            onClick={(event) => void onSubmit(event, "stop")}
-            className="rounded-md border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel-solid))] px-3 py-1.5 text-xs font-semibold text-[var(--danger)] disabled:opacity-50"
-          >
-            Stop
-          </button>
+            <h2
+              id="tunnel-modal-title"
+              className="text-center font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]"
+            >
+              {modal === "start" ? "Start tunnel" : "Stop tunnel"}
+            </h2>
+            <p className="mt-1 text-center text-xs text-[var(--muted)]">
+              Password is checked on your PC only.
+            </p>
+
+            <label className="mt-6 flex w-full flex-col gap-2 text-center text-sm text-[var(--muted)]">
+              Enter root password
+              <input
+                type="password"
+                autoFocus
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Enter root password"
+                className="field w-full px-3 py-2.5 text-center text-sm"
+              />
+            </label>
+
+            {error ? (
+              <p className="mt-3 w-full text-center text-xs text-[var(--danger)]">
+                {error}
+              </p>
+            ) : null}
+
+            <div className="mt-6 flex w-full gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setModal(null)}
+                className="flex-1 rounded-lg border border-[var(--line)] px-3 py-2.5 text-sm text-[var(--muted)] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={busy || !password.trim()}
+                className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold disabled:opacity-50 ${
+                  modal === "start"
+                    ? "bg-[var(--accent)] text-[#06261c]"
+                    : "bg-[var(--danger)] text-white"
+                }`}
+              >
+                {busy
+                  ? modal === "start"
+                    ? "Starting…"
+                    : "Stopping…"
+                  : modal === "start"
+                    ? "Start"
+                    : "Stop"}
+              </button>
+            </div>
+          </form>
         </div>
-      </form>
-
-      {!agentOnline ? (
-        <p className="mt-2 text-[11px] text-[var(--warn)]">
-          PC script offline. On the PC run:{" "}
-          <code className="text-[var(--ink)]">
-            bash scripts/install-tunnel-agent.sh
-          </code>
-        </p>
       ) : null}
-      {status?.pendingAction ? (
-        <p className="mt-2 text-[11px] text-[var(--muted)]">
-          Pending: {status.pendingAction}…
-        </p>
-      ) : null}
-      {status?.lastResult ? (
-        <p className="mt-2 text-[11px] text-[var(--ok)]">{status.lastResult}</p>
-      ) : null}
-      {message ? (
-        <p className="mt-2 text-[11px] text-[var(--ok)]">{message}</p>
-      ) : null}
-      {error || status?.lastError ? (
-        <p className="mt-2 text-[11px] text-[var(--danger)]">
-          {error || status?.lastError}
-        </p>
-      ) : null}
-    </section>
+    </>
   );
 }

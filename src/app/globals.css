@@ -306,6 +306,22 @@ a {
   animation: pulse-dot 1.6s ease-in-out infinite;
 }
 
+.tunnel-blink {
+  animation: tunnel-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes tunnel-blink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+}
+
 .progress-fill {
   animation: bar-fill 0.7s ease both;
 }
