@@ -118,7 +118,8 @@ a {
 }
 
 .field {
-  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
   border: 1px solid var(--line);
   background: var(--input);
   color: var(--ink);

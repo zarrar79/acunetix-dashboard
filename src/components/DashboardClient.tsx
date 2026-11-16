@@ -248,17 +248,15 @@ export function DashboardClient() {
         </div>
       ) : null}
 
-      <section className="rise toolbar-card flex flex-col gap-1.5 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-2 backdrop-blur sm:flex-row sm:items-center sm:gap-2">
-        <div className="min-w-0 flex-1">
-          <AddTargetForm onCreated={() => void load(true)} />
-        </div>
+      <section className="rise toolbar-card grid grid-cols-1 gap-2 rounded-xl border border-[var(--line)] bg-[var(--panel)] p-2 backdrop-blur md:grid-cols-[minmax(0,1fr)_14rem] md:items-center">
+        <AddTargetForm onCreated={() => void load(true)} />
         <input
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search scans…"
           aria-label="Search scanned targets"
-          className="field w-full shrink-0 px-2.5 py-1.5 text-sm sm:w-56 md:w-64"
+          className="field w-full px-2.5 py-1.5 text-sm"
         />
       </section>
 

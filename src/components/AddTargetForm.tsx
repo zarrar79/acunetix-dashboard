@@ -104,20 +104,23 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <form onSubmit={onSubmit} className="flex min-w-0 items-center gap-1.5">
+    <div className="min-w-0 w-full">
+      <form
+        onSubmit={onSubmit}
+        className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5"
+      >
         <input
           required
           value={address}
           onChange={(event) => setAddress(event.target.value)}
           placeholder="Add target URL"
           aria-label="Address"
-          className="field min-w-0 flex-1 px-2.5 py-1.5 text-sm"
+          className="field w-full px-2.5 py-1.5 text-sm"
         />
         <button
           type="submit"
           disabled={loading || bulkLoading || !address.trim()}
-          className="shrink-0 rounded-md bg-[var(--accent)] px-2.5 py-1.5 text-xs font-semibold text-[#06261c] transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-md bg-[var(--accent)] px-2.5 py-1.5 text-xs font-semibold text-[#06261c] transition hover:bg-[var(--accent-deep)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "…" : "Add"}
         </button>
@@ -136,17 +139,17 @@ export function AddTargetForm({ onCreated }: AddTargetFormProps) {
           disabled={loading || bulkLoading}
           onClick={() => fileRef.current?.click()}
           title={fileName || "Bulk upload .txt / .csv"}
-          className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--panel-solid)] px-2.5 py-1.5 text-xs font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-md border border-[var(--line)] bg-[var(--panel-solid)] px-2.5 py-1.5 text-xs font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {bulkLoading ? "…" : "Bulk"}
         </button>
       </form>
 
       {error ? (
-        <p className="text-[11px] leading-snug text-[var(--danger)]">{error}</p>
+        <p className="mt-1 text-[11px] leading-snug text-[var(--danger)]">{error}</p>
       ) : null}
       {success ? (
-        <p className="text-[11px] text-[var(--ok)]">{success}</p>
+        <p className="mt-1 text-[11px] text-[var(--ok)]">{success}</p>
       ) : null}
     </div>
   );
