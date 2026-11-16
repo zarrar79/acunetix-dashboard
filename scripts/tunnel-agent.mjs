@@ -47,6 +47,8 @@ let lastResult = null;
 /** When true, agent keeps cloudflared up without asking again. */
 let desiredUp = false;
 let starting = false;
+/** Set when the current spawn exits, so waiters don't miss it after detach. */
+let spawnExitCode = null;
 
 function log(...args) {
   const line = `[${new Date().toISOString()}] ${args.join(" ")}`;
@@ -249,17 +251,21 @@ function waitForUrlOrFail(timeoutMs = 50_000) {
           reject(new Error("cloudflared failed to create quick tunnel"));
           return;
         }
-        if (cloudflaredProc && cloudflaredProc.exitCode !== null) {
+        if (spawnExitCode !== null) {
           clearInterval(timer);
-          reject(
-            new Error(`cloudflared exited early (code ${cloudflaredProc.exitCode})`),
-          );
+          reject(new Error(`cloudflared exited early (code ${spawnExitCode})`));
           return;
         }
         const match = text.match(
           /https:\/\/[a-z0-9-]+\.trycloudflare\.com/gi,
         );
+        if (match?.length && /Registered tunnel connection/i.test(text)) {
+          clearInterval(timer);
+          resolve(match[match.length - 1]);
+          return;
+        }
         if (match?.length) {
+          // URL printed; accept even before "Registered" if process still alive
           clearInterval(timer);
           resolve(match[match.length - 1]);
           return;
@@ -271,7 +277,7 @@ function waitForUrlOrFail(timeoutMs = 50_000) {
         clearInterval(timer);
         reject(new Error("Timed out waiting for trycloudflare URL"));
       }
-    }, 500);
+    }, 400);
   });
 }
 
@@ -282,6 +288,7 @@ function spawnCloudflared() {
     /* ignore */
   }
 
+  spawnExitCode = null;
   const child = spawn(
     CLOUDFLARED,
     [
@@ -304,6 +311,7 @@ function spawnCloudflared() {
   child.unref();
   cloudflaredProc = child;
   child.on("exit", (code) => {
+    spawnExitCode = code;
     log(`cloudflared exited code=${code}`);
     if (cloudflaredProc === child) cloudflaredProc = null;
     publicUrl = null;
