@@ -38,6 +38,56 @@ export type ScansResponse = {
   scans: AcunetixScan[];
 };
 
+export type AcunetixVulnerability = {
+  vuln_id: string;
+  vt_id: string;
+  vt_name: string;
+  severity: number;
+  criticality: number;
+  confidence: number;
+  status: string;
+  affects_url: string;
+  affects_detail: string;
+  tags: string[];
+  target_id: string;
+  app?: string;
+};
+
+export type AcunetixVulnerabilityDetail = AcunetixVulnerability & {
+  description?: string;
+  details?: string;
+  impact?: string;
+  recommendation?: string;
+  long_description?: string;
+  cvss2?: string;
+  cvss3?: string;
+  cvss4?: string;
+  cvss_score?: number;
+  cvss4_score?: number;
+  comment?: string | null;
+  request?: string;
+  response_info?: string;
+  issue_url?: string;
+  references?: Array<{ rel?: string; href?: string } | string>;
+  highlights?: unknown;
+};
+
+export type VulnerabilitiesResponse = {
+  pagination: {
+    count: number;
+    cursors: Array<string | null>;
+  };
+  vulnerabilities: AcunetixVulnerability[];
+};
+
+export {
+  SEVERITY_LABELS,
+  THREAT_LABELS,
+  severityLabel,
+  threatLabel,
+  criticalityLabel,
+} from "@/lib/labels";
+
 function getConfig() {
   const baseUrl = process.env.ACUNETIX_BASE_URL?.replace(/\/$/, "");
   const apiKey = process.env.ACUNETIX_API_KEY;
@@ -80,6 +130,66 @@ export async function acunetixFetch<T>(
 
 export async function listScans(limit = 50): Promise<ScansResponse> {
   return acunetixFetch<ScansResponse>(`/api/v1/scans?l=${limit}`);
+}
+
+export async function getScan(scanId: string): Promise<AcunetixScan> {
+  return acunetixFetch<AcunetixScan>(`/api/v1/scans/${scanId}`);
+}
+
+export async function listScanVulnerabilities(
+  scanId: string,
+  sessionId: string,
+  limit = 100,
+): Promise<VulnerabilitiesResponse> {
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+  return acunetixFetch<VulnerabilitiesResponse>(
+    `/api/v1/scans/${scanId}/results/${sessionId}/vulnerabilities?l=${safeLimit}`,
+  );
+}
+
+export async function getVulnerabilityDetail(
+  scanId: string,
+  sessionId: string,
+  vulnId: string,
+): Promise<AcunetixVulnerabilityDetail> {
+  return acunetixFetch<AcunetixVulnerabilityDetail>(
+    `/api/v1/scans/${scanId}/results/${sessionId}/vulnerabilities/${vulnId}`,
+  );
+}
+
+export function summarizeFindings(vulns: AcunetixVulnerability[]) {
+  const severity: SeverityCounts = {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+  };
+
+  for (const vuln of vulns) {
+    switch (vuln.severity) {
+      case 4:
+        severity.critical += 1;
+        break;
+      case 3:
+        severity.high += 1;
+        break;
+      case 2:
+        severity.medium += 1;
+        break;
+      case 1:
+        severity.low += 1;
+        break;
+      default:
+        severity.info += 1;
+    }
+  }
+
+  return {
+    total: vulns.length,
+    severity,
+    open: vulns.filter((v) => v.status === "open").length,
+  };
 }
 
 export function summarizeScans(scans: AcunetixScan[]) {

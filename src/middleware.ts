@@ -6,7 +6,10 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE)?.value;
   const authed = await verifySessionToken(token, process.env.AUTH_SECRET);
 
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/api/scans")) {
+  if (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/api/scans")
+  ) {
     if (!authed) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -25,5 +28,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/scans/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/api/scans", "/api/scans/:path*", "/login"],
 };
