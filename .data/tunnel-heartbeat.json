@@ -1,7 +1,7 @@
 {
-  "tunnelUp": true,
-  "publicUrl": "",
-  "at": 1794856747224,
-  "error": null,
-  "result": "Tunnel restored"
+  "tunnelUp": false,
+  "publicUrl": null,
+  "at": 1794856749185,
+  "error": "Timed out waiting for trycloudflare URL",
+  "result": null
 }
