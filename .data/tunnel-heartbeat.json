@@ -1,7 +1,7 @@
 {
-  "tunnelUp": false,
+  "tunnelUp": true,
   "publicUrl": null,
-  "at": 1794856930013,
+  "at": 1794856932187,
   "error": null,
-  "result": "Tunnel stopped"
+  "result": "Tunnel already up at null"
 }
