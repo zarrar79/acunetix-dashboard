@@ -19,6 +19,7 @@ import {
   threatLabel,
 } from "@/lib/labels";
 import { AddTargetForm } from "@/components/AddTargetForm";
+import { ThreatMap } from "@/components/ThreatMap";
 
 type DashboardPayload = {
   summary: {
@@ -211,25 +212,28 @@ export function DashboardClient() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-6">
       <header className="rise flex items-start justify-between gap-4">
         <div>
-          <p className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-[0.18em] text-[var(--accent-deep)] uppercase">
-            Daybreak Scan Desk
+          <p className="font-[family-name:var(--font-mono)] text-[10px] font-semibold tracking-[0.22em] text-[var(--accent)] uppercase">
+            Daybreak // ops console
           </p>
           <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-[var(--ink)] sm:text-3xl">
-            Acunetix stats
+            Threat scan desk
           </h1>
+          <p className="mt-1 font-[family-name:var(--font-mono)] text-[11px] text-[var(--muted)]">
+            live acunetix telemetry · risk lattice online
+          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
           <button
             type="button"
             onClick={() => void load(true)}
-            className="rounded-full border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 text-sm text-[var(--ink)] transition hover:border-[var(--accent)]"
+            className="rounded-md border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-1.5 font-[family-name:var(--font-mono)] text-xs tracking-wide text-[var(--ink)] uppercase transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
           >
-            {refreshing ? "Refreshing…" : "Refresh"}
+            {refreshing ? "Syncing…" : "Sync"}
           </button>
           <button
             type="button"
             onClick={() => void logout()}
-            className="text-sm text-[var(--muted)] underline-offset-2 hover:underline"
+            className="font-[family-name:var(--font-mono)] text-[11px] text-[var(--muted)] underline-offset-2 hover:text-[var(--accent)] hover:underline"
           >
             Sign out
           </button>
@@ -262,6 +266,12 @@ export function DashboardClient() {
 
       {data ? (
         <>
+          <ThreatMap
+            scans={data.scans}
+            severity={data.summary.severity}
+            running={data.summary.running}
+          />
+
           <section className="rise rise-delay-1 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label="Total" value={data.summary.total} />
             <Stat
@@ -275,9 +285,16 @@ export function DashboardClient() {
           </section>
 
           <section className="rise rise-delay-2 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 backdrop-blur sm:p-5">
-            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-              Severity across listed scans
-            </h2>
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                  Risk detection
+                </p>
+                <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+                  Severity across listed scans
+                </h2>
+              </div>
+            </div>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
               <SeverityChip label="Critical" value={data.summary.severity.critical} tone="danger" />
               <SeverityChip label="High" value={data.summary.severity.high} tone="warn" />
@@ -289,9 +306,14 @@ export function DashboardClient() {
 
           {runningScans.length > 0 ? (
             <section className="rise rise-delay-2 flex flex-col gap-3">
-              <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-                Running now
-              </h2>
+              <div>
+                <p className="font-[family-name:var(--font-mono)] text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                  Active engagements
+                </p>
+                <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+                  Running now
+                </h2>
+              </div>
               {runningScans.map((scan) => (
                 <ScanRow
                   key={scan.scan_id}
@@ -405,9 +427,18 @@ function Stat({
           ? "text-[var(--danger)]"
           : "text-[var(--ink)]";
 
+  const shell =
+    accent === "danger"
+      ? "stat-shell stat-shell-danger"
+      : accent === "ok"
+        ? "stat-shell stat-shell-ok"
+        : "stat-shell";
+
   return (
-    <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 backdrop-blur">
-      <div className="flex items-center gap-2 text-xs tracking-wide text-[var(--muted)] uppercase">
+    <div
+      className={`rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 backdrop-blur ${shell}`}
+    >
+      <div className="flex items-center gap-2 font-[family-name:var(--font-mono)] text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
         {live ? (
           <span className="live-dot inline-block h-2 w-2 rounded-full bg-[var(--accent)]" />
         ) : null}
@@ -439,10 +470,17 @@ function SeverityChip({
         : tone === "ok"
           ? "text-[var(--ok)]"
           : "text-[var(--info)]";
+  const hot = tone === "danger" && value > 0;
 
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-3">
-      <div className="text-xs text-[var(--muted)]">{label}</div>
+    <div
+      className={`severity-chip rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-3 ${
+        hot ? "severity-chip-hot" : ""
+      }`}
+    >
+      <div className="font-[family-name:var(--font-mono)] text-[10px] tracking-wide text-[var(--muted)] uppercase">
+        {label}
+      </div>
       <div className={`mt-1 text-xl font-semibold ${color}`}>{value}</div>
     </div>
   );

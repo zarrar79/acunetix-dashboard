@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { OpsBackdrop } from "@/components/OpsBackdrop";
 import "./globals.css";
 
 const display = Space_Grotesk({
@@ -22,7 +23,7 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "Daybreak Scan Desk",
-  description: "Mobile dashboard for Acunetix scan stats",
+  description: "Ops console for Acunetix scan stats and risk telemetry",
 };
 
 export default function RootLayout({
@@ -35,7 +36,10 @@ export default function RootLayout({
       lang="en"
       className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <OpsBackdrop />
+        <div className="app-shell flex min-h-full flex-1 flex-col">{children}</div>
+      </body>
     </html>
   );
 }
