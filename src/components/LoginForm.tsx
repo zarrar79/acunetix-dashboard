@@ -55,7 +55,7 @@ export function LoginForm() {
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="field px-4 py-3 text-base"
+          className="field w-full px-4 py-3 text-base"
           placeholder="Dashboard password"
         />
       </label>
