@@ -1,5 +1,5 @@
 [Unit]
-Description=Daybreak Acunetix tunnel agent
+Description=Daybreak tunnel controller (PC script — no AI)
 After=network-online.target
 Wants=network-online.target
 
@@ -7,11 +7,9 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/home/slytherin/acunetix-dashboard
 EnvironmentFile=/home/slytherin/acunetix-dashboard/.env.tunnel-agent
-ExecStart=/home/slytherin/.nvm/versions/node/v22.23.5/bin/node /home/slytherin/acunetix-dashboard/scripts/tunnel-agent.mjs
+ExecStart=/home/slytherin/.nvm/versions/node/v22.23.5/bin/node /home/slytherin/acunetix-dashboard/scripts/tunnel-ctl.mjs agent
 Restart=always
 RestartSec=3
-# Keep running even after logout (optional; needs linger)
-# Enable with: loginctl enable-linger $USER
 
 [Install]
 WantedBy=default.target

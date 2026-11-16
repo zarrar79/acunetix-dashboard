@@ -120,8 +120,10 @@ export function TunnelControl() {
             Cloudflare tunnel
           </p>
           <p className="mt-0.5 text-xs text-[var(--muted)]">
-            Start creates a new public URL (PC agent auto-retries if Cloudflare
-            fails). Stop kills it. Sudo password is checked only on your PC.
+            Controlled by a hardcoded script on your PC (
+            <code>tunnel-ctl.mjs</code>). Your sudo password is verified on the
+            PC only — no AI involved. Start makes a new public URL; Stop kills
+            it.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[10px] font-[family-name:var(--font-mono)] uppercase tracking-wide">
@@ -188,8 +190,10 @@ export function TunnelControl() {
 
       {!agentOnline ? (
         <p className="mt-2 text-[11px] text-[var(--warn)]">
-          Start the PC agent first:{" "}
-          <code className="text-[var(--ink)]">node scripts/tunnel-agent.mjs</code>
+          PC script offline. On the PC run:{" "}
+          <code className="text-[var(--ink)]">
+            bash scripts/install-tunnel-agent.sh
+          </code>
         </p>
       ) : null}
       {status?.pendingAction ? (
