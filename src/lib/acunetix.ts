@@ -108,14 +108,26 @@ async function getConfig() {
     );
   }
 
-  const { getRuntimeTunnelUrl } = await import("@/lib/tunnel-store");
+  const { getRuntimeTunnelUrl, isTunnelKnownDown } = await import(
+    "@/lib/tunnel-store"
+  );
+
+  // Never call a dead trycloudflare URL after Stop — wait for Start to publish a new one.
+  if (await isTunnelKnownDown()) {
+    throw new AppError(
+      "CONNECTION",
+      "Cloudflare tunnel is down. Use Start on the dashboard (PC sudo password) to bring it back.",
+      { status: 503 },
+    );
+  }
+
   const runtimeUrl = await getRuntimeTunnelUrl();
   const rawBase = runtimeUrl || process.env.ACUNETIX_BASE_URL;
 
   if (!rawBase) {
     throw new AppError(
       "CONFIG",
-      "Scanner URL missing. Start the tunnel from the dashboard or set ACUNETIX_BASE_URL.",
+      "No live tunnel URL yet. Start the Cloudflare tunnel from the dashboard.",
     );
   }
 

@@ -24,16 +24,32 @@ export function TunnelControl() {
       const response = await fetch("/api/tunnel/status", { cache: "no-store" });
       const data = (await response.json()) as TunnelStatus;
       if (response.ok) setStatus(data);
+      return data;
     } catch {
-      /* ignore transient */
+      return null;
     }
   }, []);
 
   useEffect(() => {
     void refresh();
-    const id = window.setInterval(() => void refresh(), 3000);
+    const id = window.setInterval(() => void refresh(), 2500);
     return () => window.clearInterval(id);
   }, [refresh]);
+
+  async function waitForState(
+    predicate: (s: TunnelStatus) => boolean,
+    timeoutMs: number,
+    pendingMsg: string,
+  ) {
+    setMessage(pendingMsg);
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const latest = await refresh();
+      if (latest && predicate(latest)) return latest;
+      await new Promise((r) => window.setTimeout(r, 2000));
+    }
+    return null;
+  }
 
   async function onSubmit(event: FormEvent, action: "start" | "stop") {
     event.preventDefault();
@@ -55,13 +71,41 @@ export function TunnelControl() {
         setBusy(false);
         return;
       }
-      setMessage(data.message || "Command queued");
+
       setPassword("");
-      void refresh();
+
+      if (action === "start") {
+        const ready = await waitForState(
+          (s) => Boolean(s.tunnelUp && s.publicUrl),
+          90_000,
+          "Starting tunnel… waiting for new public URL…",
+        );
+        if (ready?.publicUrl) {
+          setMessage(`Tunnel up: ${ready.publicUrl}`);
+        } else {
+          setError(
+            "Tunnel start timed out. Check the PC agent / cloudflared logs.",
+          );
+        }
+      } else {
+        const down = await waitForState(
+          (s) => !s.tunnelUp,
+          60_000,
+          "Stopping tunnel…",
+        );
+        if (down && !down.tunnelUp) {
+          setMessage(
+            "Tunnel down. Public URL is offline until you Start again (a new URL will be created).",
+          );
+        } else {
+          setError("Stop timed out. Check the PC agent.");
+        }
+      }
     } catch {
       setError("Could not reach tunnel control API");
     } finally {
       setBusy(false);
+      void refresh();
     }
   }
 
@@ -76,8 +120,8 @@ export function TunnelControl() {
             Cloudflare tunnel
           </p>
           <p className="mt-0.5 text-xs text-[var(--muted)]">
-            Start/stop requires your PC sudo password. Checked only on your
-            machine by the local agent.
+            Start creates a new public URL. Stop kills it (old URL will not
+            work). PC sudo password is checked on your machine.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[10px] font-[family-name:var(--font-mono)] uppercase tracking-wide">
@@ -102,11 +146,15 @@ export function TunnelControl() {
         </div>
       </div>
 
-      {status?.publicUrl ? (
-        <p className="mt-2 truncate font-[family-name:var(--font-mono)] text-[11px] text-[var(--muted)]">
-          {status.publicUrl}
+      {tunnelUp && status?.publicUrl ? (
+        <p className="mt-2 break-all font-[family-name:var(--font-mono)] text-[11px] text-[var(--accent)]">
+          Live URL: {status.publicUrl}
         </p>
-      ) : null}
+      ) : (
+        <p className="mt-2 text-[11px] text-[var(--muted)]">
+          No live public URL right now.
+        </p>
+      )}
 
       <form className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
@@ -125,7 +173,7 @@ export function TunnelControl() {
             onClick={(event) => void onSubmit(event, "start")}
             className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[#06261c] disabled:opacity-50"
           >
-            Start
+            {busy ? "Working…" : "Start"}
           </button>
           <button
             type="button"
