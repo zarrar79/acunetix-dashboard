@@ -288,12 +288,11 @@ export function DashboardClient() {
                 </h2>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <SeverityChip label="Critical" value={data.summary.severity.critical} tone="danger" />
               <SeverityChip label="High" value={data.summary.severity.high} tone="warn" />
               <SeverityChip label="Medium" value={data.summary.severity.medium} tone="warn" />
               <SeverityChip label="Low" value={data.summary.severity.low} tone="ok" />
-              <SeverityChip label="Info" value={data.summary.severity.info} tone="info" />
             </div>
           </section>
 
@@ -659,12 +658,11 @@ function ScanRow({
       </div>
 
       {counts ? (
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <MiniCount label="Critical" value={counts.critical} tone="danger" />
           <MiniCount label="High" value={counts.high} tone="warn" />
           <MiniCount label="Medium" value={counts.medium} tone="warn" />
           <MiniCount label="Low" value={counts.low} tone="ok" />
-          <MiniCount label="Info" value={counts.info} tone="info" />
         </div>
       ) : null}
 
@@ -706,7 +704,7 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [openFindingId, setOpenFindingId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | 0 | 1 | 2 | 3 | 4>("all");
+  const [filter, setFilter] = useState<"all" | 1 | 2 | 3 | 4>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -747,7 +745,9 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
   }, [scanId]);
 
   const filtered = useMemo(() => {
-    const findings = payload?.findings ?? [];
+    const findings = (payload?.findings ?? []).filter(
+      (finding) => finding.severity > 0,
+    );
     if (filter === "all") return findings;
     return findings.filter((finding) => finding.severity === filter);
   }, [payload, filter]);
@@ -782,8 +782,7 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
             {payload.summary.severity.critical} · High{" "}
             {payload.summary.severity.high} · Medium{" "}
             {payload.summary.severity.medium} · Low{" "}
-            {payload.summary.severity.low} · Info{" "}
-            {payload.summary.severity.info}
+            {payload.summary.severity.low}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -794,7 +793,6 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
               [3, "High"],
               [2, "Medium"],
               [1, "Low"],
-              [0, "Info"],
             ] as const
           ).map(([value, label]) => (
             <button
