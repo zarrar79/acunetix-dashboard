@@ -20,6 +20,7 @@ import {
 } from "@/lib/labels";
 import { AddTargetForm } from "@/components/AddTargetForm";
 import { TunnelControl } from "@/components/TunnelControl";
+import { downloadFindingReport } from "@/lib/report-download";
 
 type DashboardPayload = {
   summary: {
@@ -37,6 +38,7 @@ type DashboardPayload = {
 };
 
 type FindingsPayload = {
+  scan?: AcunetixScan;
   summary: {
     total: number;
     open: number;
@@ -47,6 +49,8 @@ type FindingsPayload = {
   code?: string;
   traceId?: string;
 };
+
+type SeverityFilter = "all" | 1 | 2 | 3 | 4;
 
 function formatApiError(
   payload: { error?: string; code?: string; traceId?: string } | null,
@@ -504,12 +508,18 @@ function ScanRow({
   ].includes(statusLower);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
+  const [reportFilter, setReportFilter] = useState<SeverityFilter>("all");
   const progress = Math.max(
     0,
     Math.min(100, Number(scan.current_session?.progress ?? 0)),
   );
   const counts = scan.current_session?.severity_counts;
   const threat = scan.current_session?.threat;
+
+  function openReport(filter: SeverityFilter = "all") {
+    setReportFilter(filter);
+    if (!expanded) onToggle();
+  }
 
   async function runAction(
     event: MouseEvent,
@@ -626,10 +636,13 @@ function ScanRow({
           />
           <button
             type="button"
-            onClick={onToggle}
+            onClick={() => {
+              if (expanded) onToggle();
+              else openReport("all");
+            }}
             className="rounded-full border border-[var(--line)] bg-[var(--panel-solid)] px-2.5 py-1 text-xs text-[var(--muted)]"
           >
-            {expanded ? "Hide details" : "View details"}
+            {expanded ? "Hide report" : "View report"}
           </button>
         </div>
       </div>
@@ -652,14 +665,40 @@ function ScanRow({
 
       {counts ? (
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <MiniCount label="Critical" value={counts.critical} tone="danger" />
-          <MiniCount label="High" value={counts.high} tone="warn" />
-          <MiniCount label="Medium" value={counts.medium} tone="warn" />
-          <MiniCount label="Low" value={counts.low} tone="ok" />
+          <MiniCount
+            label="Critical"
+            value={counts.critical}
+            tone="danger"
+            onClick={() => openReport(4)}
+          />
+          <MiniCount
+            label="High"
+            value={counts.high}
+            tone="warn"
+            onClick={() => openReport(3)}
+          />
+          <MiniCount
+            label="Medium"
+            value={counts.medium}
+            tone="warn"
+            onClick={() => openReport(2)}
+          />
+          <MiniCount
+            label="Low"
+            value={counts.low}
+            tone="ok"
+            onClick={() => openReport(1)}
+          />
         </div>
       ) : null}
 
-      {expanded ? <ScanFindingsPanel scanId={scan.scan_id} /> : null}
+      {expanded ? (
+        <FindingsReportModal
+          scan={scan}
+          initialFilter={reportFilter}
+          onClose={onToggle}
+        />
+      ) : null}
     </article>
   );
 }
@@ -668,10 +707,12 @@ function MiniCount({
   label,
   value,
   tone,
+  onClick,
 }: {
   label: string;
   value: number;
   tone: "danger" | "warn" | "ok" | "info";
+  onClick: () => void;
 }) {
   const color =
     tone === "danger"
@@ -683,21 +724,38 @@ function MiniCount({
           : "text-[var(--info)]";
 
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-2">
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] px-3 py-2 text-left transition hover:border-[var(--accent)]"
+    >
       <div className="text-[11px] tracking-wide text-[var(--muted)] uppercase">
         {label}
       </div>
       <div className={`text-lg font-semibold ${color}`}>{value}</div>
-    </div>
+    </button>
   );
 }
 
-function ScanFindingsPanel({ scanId }: { scanId: string }) {
+function FindingsReportModal({
+  scan,
+  initialFilter,
+  onClose,
+}: {
+  scan: AcunetixScan;
+  initialFilter: SeverityFilter;
+  onClose: () => void;
+}) {
   const [payload, setPayload] = useState<FindingsPayload | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [openFindingId, setOpenFindingId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | 1 | 2 | 3 | 4>("all");
+  const [selectedFinding, setSelectedFinding] =
+    useState<AcunetixVulnerabilityDetail | null>(null);
+  const [filter, setFilter] = useState<SeverityFilter>(initialFilter);
+
+  useEffect(() => {
+    setFilter(initialFilter);
+  }, [initialFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -707,7 +765,7 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
       setError("");
       try {
         const response = await fetch(
-          `/api/scans/${scanId}/findings?details=1`,
+          `/api/scans/${scan.scan_id}/findings?details=1`,
           { cache: "no-store" },
         );
         const data = (await response.json()) as FindingsPayload;
@@ -735,7 +793,7 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [scanId]);
+  }, [scan.scan_id]);
 
   const filtered = useMemo(() => {
     const findings = (payload?.findings ?? []).filter(
@@ -745,98 +803,175 @@ function ScanFindingsPanel({ scanId }: { scanId: string }) {
     return findings.filter((finding) => finding.severity === filter);
   }, [payload, filter]);
 
-  if (loading) {
-    return (
-      <div className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-4 text-sm text-[var(--muted)]">
-        Loading every finding for this scan…
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="mt-4 rounded-xl border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel))] p-4 text-sm text-[var(--danger)]">
-        {error}
-      </div>
-    );
-  }
-
-  if (!payload) return null;
-
   return (
-    <div className="mt-5 border-t border-[var(--line)] pt-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h4 className="font-[family-name:var(--font-display)] text-base font-semibold">
-            Findings ({payload.summary.total})
-          </h4>
-          <p className="text-sm text-[var(--muted)]">
-            {payload.summary.open} open · Critical{" "}
-            {payload.summary.severity.critical} · High{" "}
-            {payload.summary.severity.high} · Medium{" "}
-            {payload.summary.severity.medium} · Low{" "}
-            {payload.summary.severity.low}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              ["all", "All"],
-              [4, "Critical"],
-              [3, "High"],
-              [2, "Medium"],
-              [1, "Low"],
-            ] as const
-          ).map(([value, label]) => (
+    <>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-3 py-6 backdrop-blur-sm sm:px-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="findings-report-title"
+        onClick={onClose}
+      >
+        <div
+          className="flex max-h-[min(92vh,920px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-4 py-4 sm:px-5">
+            <div className="min-w-0">
+              <p className="font-[family-name:var(--font-mono)] text-[11px] tracking-[0.14em] text-[var(--accent)] uppercase">
+                Findings
+              </p>
+              <h4
+                id="findings-report-title"
+                className="mt-1 truncate font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]"
+              >
+                {scan.target?.address || "Unknown target"}
+              </h4>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {loading
+                  ? "Loading findings…"
+                  : payload
+                    ? `${payload.summary.open} open · Critical ${payload.summary.severity.critical} · High ${payload.summary.severity.high} · Medium ${payload.summary.severity.medium} · Low ${payload.summary.severity.low}`
+                    : "Click a finding to open its report"}
+              </p>
+            </div>
             <button
-              key={String(value)}
               type="button"
-              onClick={() => setFilter(value)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                filter === value
-                  ? "bg-[var(--accent)] text-white"
-                  : "border border-[var(--line)] bg-[var(--panel-solid)] text-[var(--muted)]"
-              }`}
+              onClick={onClose}
+              className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)] hover:text-[var(--ink)]"
+              aria-label="Close findings"
             >
-              {label}
+              Close
             </button>
-          ))}
+          </div>
+
+          <div className="border-b border-[var(--line)] px-4 py-3 sm:px-5">
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["all", "All"],
+                  [4, "Critical"],
+                  [3, "High"],
+                  [2, "Medium"],
+                  [1, "Low"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={String(value)}
+                  type="button"
+                  onClick={() => setFilter(value)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                    filter === value
+                      ? "bg-[var(--accent)] text-[#06261c]"
+                      : "border border-[var(--line)] bg-[var(--panel)] text-[var(--muted)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+            {loading ? (
+              <p className="text-sm text-[var(--muted)]">
+                Loading every finding for this scan…
+              </p>
+            ) : null}
+            {error ? (
+              <p className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel))] p-4 text-sm text-[var(--danger)]">
+                {error}
+              </p>
+            ) : null}
+            {!loading && !error && payload ? (
+              <div className="flex flex-col gap-3">
+                {filtered.length === 0 ? (
+                  <p className="text-sm text-[var(--muted)]">
+                    No findings in this severity filter.
+                  </p>
+                ) : (
+                  filtered.map((finding) => (
+                    <FindingCard
+                      key={finding.vuln_id}
+                      finding={finding}
+                      onOpen={() => setSelectedFinding(finding)}
+                    />
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3">
-        {filtered.length === 0 ? (
-          <p className="text-sm text-[var(--muted)]">
-            No findings in this severity filter.
-          </p>
-        ) : (
-          filtered.map((finding) => (
-            <FindingCard
-              key={finding.vuln_id}
-              finding={finding}
-              open={openFindingId === finding.vuln_id}
-              onToggle={() =>
-                setOpenFindingId((current) =>
-                  current === finding.vuln_id ? null : finding.vuln_id,
-                )
-              }
-            />
-          ))
-        )}
-      </div>
-    </div>
+      {selectedFinding ? (
+        <FindingDetailModal
+          finding={selectedFinding}
+          scan={payload?.scan ?? scan}
+          onClose={() => setSelectedFinding(null)}
+        />
+      ) : null}
+    </>
   );
 }
 
 function FindingCard({
   finding,
-  open,
-  onToggle,
+  onOpen,
 }: {
   finding: AcunetixVulnerabilityDetail;
-  open: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
 }) {
+  const tone = severityTone(finding.severity ?? 0);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-3 text-left transition hover:border-[var(--accent)] sm:p-4"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <SeverityBadge level={finding.severity ?? 0} tone={tone} />
+        <span className="rounded-full bg-[color-mix(in_srgb,var(--muted)_18%,var(--panel-solid))] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">
+          {finding.status}
+        </span>
+        <span className="text-[11px] text-[var(--muted)]">
+          confidence {finding.confidence ?? 0}%
+        </span>
+      </div>
+      <h5 className="mt-2 font-[family-name:var(--font-display)] text-base font-semibold text-[var(--ink)]">
+        {finding.vt_name}
+      </h5>
+      <p className="mt-1 truncate text-sm text-[var(--muted)]">
+        {finding.affects_url || "No affected URL"}
+        {finding.affects_detail ? ` · ${finding.affects_detail}` : ""}
+      </p>
+      {finding.tags?.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {finding.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
+function FindingDetailModal({
+  finding,
+  scan,
+  onClose,
+}: {
+  finding: AcunetixVulnerabilityDetail;
+  scan: AcunetixScan;
+  onClose: () => void;
+}) {
+  const [downloadName, setDownloadName] = useState("");
   const tone = severityTone(finding.severity ?? 0);
   const description = stripHtml(
     finding.description || finding.long_description || finding.details,
@@ -844,55 +979,73 @@ function FindingCard({
   const impact = stripHtml(finding.impact);
   const recommendation = stripHtml(finding.recommendation);
 
-  return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-3 sm:p-4">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full flex-col gap-2 text-left"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <SeverityBadge level={finding.severity ?? 0} tone={tone} />
-          <span className="rounded-full bg-[color-mix(in_srgb,var(--muted)_18%,var(--panel-solid))] px-2 py-0.5 text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase">
-            {finding.status}
-          </span>
-          <span className="text-[11px] text-[var(--muted)]">
-            confidence {finding.confidence ?? 0}%
-          </span>
-        </div>
-        <h5 className="font-[family-name:var(--font-display)] text-base font-semibold text-[var(--ink)]">
-          {finding.vt_name}
-        </h5>
-        <p className="truncate text-sm text-[var(--muted)]">
-          {finding.affects_url || "No affected URL"}
-          {finding.affects_detail ? ` · ${finding.affects_detail}` : ""}
-        </p>
-        {finding.tags?.length ? (
-          <div className="flex flex-wrap gap-1.5">
-            {finding.tags.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </button>
+  function handleDownload() {
+    const filename = downloadFindingReport({ finding, scan });
+    setDownloadName(filename);
+  }
 
-      {open ? (
-        <div className="mt-3 space-y-3 border-t border-[var(--line)] pt-3 text-sm text-[var(--ink)]">
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 px-3 py-6 backdrop-blur-sm sm:px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="finding-detail-title"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[min(92vh,900px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-4 py-4 sm:px-5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <SeverityBadge level={finding.severity ?? 0} tone={tone} />
+              <span className="text-[11px] text-[var(--muted)] uppercase">
+                {finding.status}
+              </span>
+            </div>
+            <h4
+              id="finding-detail-title"
+              className="mt-2 font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]"
+            >
+              {finding.vt_name}
+            </h4>
+            <p className="mt-1 break-all text-xs text-[var(--muted)]">
+              {finding.affects_url || scan.target?.address || "No affected URL"}
+            </p>
+            {downloadName ? (
+              <p className="mt-1 truncate text-[11px] text-[var(--ok)]">
+                Saved as {downloadName}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="rounded-lg border border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_16%,var(--panel-solid))] px-3 py-2 text-xs font-semibold text-[var(--accent)] transition hover:bg-[color-mix(in_srgb,var(--accent)_26%,var(--panel-solid))]"
+            >
+              Download this report
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)] hover:text-[var(--ink)]"
+              aria-label="Close finding"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 text-sm text-[var(--ink)] sm:px-5">
           <DetailBlock label="Severity" value={severityLabel(finding.severity)} />
           <DetailBlock
             label="Target criticality"
             value={criticalityLabel(finding.criticality)}
           />
           {finding.cvss_score != null ? (
-            <DetailBlock
-              label="CVSS score"
-              value={String(finding.cvss_score)}
-            />
+            <DetailBlock label="CVSS score" value={String(finding.cvss_score)} />
           ) : null}
           {finding.cvss3 ? (
             <DetailBlock label="CVSS v3 vector" value={finding.cvss3} mono />
@@ -938,7 +1091,7 @@ function FindingCard({
             />
           ) : null}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
