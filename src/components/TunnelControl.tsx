@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 type TunnelStatus = {
   tunnelUp: boolean;
@@ -20,6 +21,20 @@ export function TunnelControl() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!modal) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [modal]);
 
   const refresh = useCallback(async () => {
     try {
@@ -141,101 +156,117 @@ export function TunnelControl() {
         </button>
       </div>
 
-      {modal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="tunnel-modal-title"
-          onClick={() => {
-            if (!busy) setModal(null);
-          }}
-        >
-          <form
-            onSubmit={(event) => void onConfirm(event)}
-            onClick={(event) => event.stopPropagation()}
-            className="flex w-full max-w-sm flex-col items-center rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] px-6 py-8 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
-          >
+      {mounted && modal
+        ? createPortal(
             <div
-              className={`tunnel-blink mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 ${
-                modal === "start"
-                  ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)]"
-                  : "border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_18%,transparent)] text-[var(--danger)]"
-              }`}
-              aria-hidden
+              className="tunnel-password-overlay flex items-center justify-center bg-black/65 px-4 backdrop-blur-md"
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 2147483000,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="tunnel-modal-title"
+              onClick={() => {
+                if (!busy) setModal(null);
+              }}
             >
-              <svg
-                viewBox="0 0 24 24"
-                className="h-8 w-8"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
+              <form
+                onSubmit={(event) => void onConfirm(event)}
+                onClick={(event) => event.stopPropagation()}
+                className="flex w-full max-w-sm flex-col items-center rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] px-6 py-8 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+                style={{
+                  position: "relative",
+                  zIndex: 2147483001,
+                  margin: "auto",
+                }}
               >
-                <circle cx="12" cy="8" r="3.2" />
-                <path d="M5.5 19c1.6-3.2 4-4.8 6.5-4.8S16.9 15.8 18.5 19" />
-              </svg>
-            </div>
+                <div
+                  className={`tunnel-blink mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 ${
+                    modal === "start"
+                      ? "border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)]"
+                      : "border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_18%,transparent)] text-[var(--danger)]"
+                  }`}
+                  aria-hidden
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-8 w-8"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  >
+                    <circle cx="12" cy="8" r="3.2" />
+                    <path d="M5.5 19c1.6-3.2 4-4.8 6.5-4.8S16.9 15.8 18.5 19" />
+                  </svg>
+                </div>
 
-            <h2
-              id="tunnel-modal-title"
-              className="text-center font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]"
-            >
-              {modal === "start" ? "Start tunnel" : "Stop tunnel"}
-            </h2>
-            <p className="mt-1 text-center text-xs text-[var(--muted)]">
-              Password is checked on your PC only.
-            </p>
+                <h2
+                  id="tunnel-modal-title"
+                  className="text-center font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]"
+                >
+                  {modal === "start" ? "Start tunnel" : "Stop tunnel"}
+                </h2>
+                <p className="mt-1 text-center text-xs text-[var(--muted)]">
+                  Password is checked on your PC only.
+                </p>
 
-            <label className="mt-6 flex w-full flex-col gap-2 text-center text-sm text-[var(--muted)]">
-              Enter root password
-              <input
-                type="password"
-                autoFocus
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Enter root password"
-                className="field w-full px-3 py-2.5 text-center text-sm"
-              />
-            </label>
+                <label className="mt-6 flex w-full flex-col gap-2 text-center text-sm text-[var(--muted)]">
+                  Enter root password
+                  <input
+                    type="password"
+                    autoFocus
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Enter root password"
+                    className="field w-full px-3 py-2.5 text-center text-sm"
+                  />
+                </label>
 
-            {error ? (
-              <p className="mt-3 w-full text-center text-xs text-[var(--danger)]">
-                {error}
-              </p>
-            ) : null}
+                {error ? (
+                  <p className="mt-3 w-full text-center text-xs text-[var(--danger)]">
+                    {error}
+                  </p>
+                ) : null}
 
-            <div className="mt-6 flex w-full gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setModal(null)}
-                className="flex-1 rounded-lg border border-[var(--line)] px-3 py-2.5 text-sm text-[var(--muted)] disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={busy || !password.trim()}
-                className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold disabled:opacity-50 ${
-                  modal === "start"
-                    ? "bg-[var(--accent)] text-[#06261c]"
-                    : "bg-[var(--danger)] text-white"
-                }`}
-              >
-                {busy
-                  ? modal === "start"
-                    ? "Starting…"
-                    : "Stopping…"
-                  : modal === "start"
-                    ? "Start"
-                    : "Stop"}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+                <div className="mt-6 flex w-full gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setModal(null)}
+                    className="flex-1 rounded-lg border border-[var(--line)] px-3 py-2.5 text-sm text-[var(--muted)] disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy || !password.trim()}
+                    className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold disabled:opacity-50 ${
+                      modal === "start"
+                        ? "bg-[var(--accent)] text-[#06261c]"
+                        : "bg-[var(--danger)] text-white"
+                    }`}
+                  >
+                    {busy
+                      ? modal === "start"
+                        ? "Starting…"
+                        : "Stopping…"
+                      : modal === "start"
+                        ? "Start"
+                        : "Stop"}
+                  </button>
+                </div>
+              </form>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

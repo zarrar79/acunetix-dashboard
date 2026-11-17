@@ -7,6 +7,7 @@ import {
   useState,
   type MouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type {
   AcunetixScan,
@@ -642,7 +643,7 @@ function ScanRow({
             }}
             className="rounded-full border border-[var(--line)] bg-[var(--panel-solid)] px-2.5 py-1 text-xs text-[var(--muted)]"
           >
-            {expanded ? "Hide report" : "View report"}
+            {expanded ? "Hide details" : "View details"}
           </button>
         </div>
       </div>
@@ -693,11 +694,7 @@ function ScanRow({
       ) : null}
 
       {expanded ? (
-        <FindingsReportModal
-          scan={scan}
-          initialFilter={reportFilter}
-          onClose={onToggle}
-        />
+        <ScanFindingsPanel scan={scan} initialFilter={reportFilter} />
       ) : null}
     </article>
   );
@@ -737,14 +734,12 @@ function MiniCount({
   );
 }
 
-function FindingsReportModal({
+function ScanFindingsPanel({
   scan,
   initialFilter,
-  onClose,
 }: {
   scan: AcunetixScan;
   initialFilter: SeverityFilter;
-  onClose: () => void;
 }) {
   const [payload, setPayload] = useState<FindingsPayload | null>(null);
   const [error, setError] = useState("");
@@ -803,111 +798,87 @@ function FindingsReportModal({
     return findings.filter((finding) => finding.severity === filter);
   }, [payload, filter]);
 
+  if (loading) {
+    return (
+      <div className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--panel-solid)] p-4 text-sm text-[var(--muted)]">
+        Loading every finding for this scan…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mt-4 rounded-xl border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel))] p-4 text-sm text-[var(--danger)]">
+        {error}
+      </div>
+    );
+  }
+
+  if (!payload) return null;
+
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-3 py-6 backdrop-blur-sm sm:px-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="findings-report-title"
-        onClick={onClose}
-      >
-        <div
-          className="flex max-h-[min(92vh,920px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-4 py-4 sm:px-5">
-            <div className="min-w-0">
-              <p className="font-[family-name:var(--font-mono)] text-[11px] tracking-[0.14em] text-[var(--accent)] uppercase">
-                Findings
-              </p>
-              <h4
-                id="findings-report-title"
-                className="mt-1 truncate font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--ink)]"
+      <div className="mt-5 border-t border-[var(--line)] pt-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h4 className="font-[family-name:var(--font-display)] text-base font-semibold">
+              Findings ({payload.summary.total})
+            </h4>
+            <p className="text-sm text-[var(--muted)]">
+              {payload.summary.open} open · Critical{" "}
+              {payload.summary.severity.critical} · High{" "}
+              {payload.summary.severity.high} · Medium{" "}
+              {payload.summary.severity.medium} · Low{" "}
+              {payload.summary.severity.low}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "All"],
+                [4, "Critical"],
+                [3, "High"],
+                [2, "Medium"],
+                [1, "Low"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={String(value)}
+                type="button"
+                onClick={() => setFilter(value)}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                  filter === value
+                    ? "bg-[var(--accent)] text-[#06261c]"
+                    : "border border-[var(--line)] bg-[var(--panel-solid)] text-[var(--muted)]"
+                }`}
               >
-                {scan.target?.address || "Unknown target"}
-              </h4>
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                {loading
-                  ? "Loading findings…"
-                  : payload
-                    ? `${payload.summary.open} open · Critical ${payload.summary.severity.critical} · High ${payload.summary.severity.high} · Medium ${payload.summary.severity.medium} · Low ${payload.summary.severity.low}`
-                    : "Click a finding to open its report"}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)] hover:text-[var(--ink)]"
-              aria-label="Close findings"
-            >
-              Close
-            </button>
+                {label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          <div className="border-b border-[var(--line)] px-4 py-3 sm:px-5">
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ["all", "All"],
-                  [4, "Critical"],
-                  [3, "High"],
-                  [2, "Medium"],
-                  [1, "Low"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={String(value)}
-                  type="button"
-                  onClick={() => setFilter(value)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                    filter === value
-                      ? "bg-[var(--accent)] text-[#06261c]"
-                      : "border border-[var(--line)] bg-[var(--panel)] text-[var(--muted)]"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-            {loading ? (
-              <p className="text-sm text-[var(--muted)]">
-                Loading every finding for this scan…
-              </p>
-            ) : null}
-            {error ? (
-              <p className="rounded-xl border border-[color-mix(in_srgb,var(--danger)_45%,var(--line))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--panel))] p-4 text-sm text-[var(--danger)]">
-                {error}
-              </p>
-            ) : null}
-            {!loading && !error && payload ? (
-              <div className="flex flex-col gap-3">
-                {filtered.length === 0 ? (
-                  <p className="text-sm text-[var(--muted)]">
-                    No findings in this severity filter.
-                  </p>
-                ) : (
-                  filtered.map((finding) => (
-                    <FindingCard
-                      key={finding.vuln_id}
-                      finding={finding}
-                      onOpen={() => setSelectedFinding(finding)}
-                    />
-                  ))
-                )}
-              </div>
-            ) : null}
-          </div>
+        <div className="mt-4 flex flex-col gap-3">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">
+              No findings in this severity filter.
+            </p>
+          ) : (
+            filtered.map((finding) => (
+              <FindingCard
+                key={finding.vuln_id}
+                finding={finding}
+                onOpen={() => setSelectedFinding(finding)}
+              />
+            ))
+          )}
         </div>
       </div>
 
       {selectedFinding ? (
         <FindingDetailModal
           finding={selectedFinding}
-          scan={payload?.scan ?? scan}
+          scan={payload.scan ?? scan}
           onClose={() => setSelectedFinding(null)}
         />
       ) : null}
@@ -972,6 +943,7 @@ function FindingDetailModal({
   onClose: () => void;
 }) {
   const [downloadName, setDownloadName] = useState("");
+  const [mounted, setMounted] = useState(false);
   const tone = severityTone(finding.severity ?? 0);
   const description = stripHtml(
     finding.description || finding.long_description || finding.details,
@@ -979,21 +951,32 @@ function FindingDetailModal({
   const impact = stripHtml(finding.impact);
   const recommendation = stripHtml(finding.recommendation);
 
+  useEffect(() => {
+    setMounted(true);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
   function handleDownload() {
     const filename = downloadFindingReport({ finding, scan });
     setDownloadName(filename);
   }
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 px-3 py-6 backdrop-blur-sm sm:px-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/65 px-3 py-6 backdrop-blur-md sm:px-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="finding-detail-title"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[min(92vh,900px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        className="relative z-[201] flex max-h-[min(92vh,900px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-4 py-4 sm:px-5">
@@ -1092,7 +1075,8 @@ function FindingDetailModal({
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
