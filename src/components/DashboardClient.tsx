@@ -215,7 +215,7 @@ export function DashboardClient() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-6">
-      <header className="rise flex items-start justify-between gap-4">
+      <header className="flex items-start justify-between gap-4">
         <div>
           <p className="font-[family-name:var(--font-display)] text-xs font-semibold tracking-[0.18em] text-[var(--accent)] uppercase">
             Daybreak Scan Desk
@@ -225,7 +225,7 @@ export function DashboardClient() {
           </h1>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="relative z-[5] flex flex-wrap items-center justify-end gap-2">
             <TunnelControl />
             <button
               type="button"
