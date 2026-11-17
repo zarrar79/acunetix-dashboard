@@ -527,3 +527,36 @@ a {
   position: relative;
   z-index: 1;
 }
+
+#modal-root {
+  position: relative;
+  z-index: 2147483000;
+}
+
+.tunnel-password-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  z-index: 2147483000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100vw !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  margin: 0 !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+.tunnel-password-dialog {
+  position: relative !important;
+  z-index: 2147483001 !important;
+  margin: auto !important;
+  width: min(100%, 24rem) !important;
+  flex-shrink: 0 !important;
+}

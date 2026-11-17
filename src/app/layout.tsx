@@ -39,6 +39,7 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col">
         <OpsBackdrop />
         <div className="app-shell flex min-h-full flex-1 flex-col">{children}</div>
+        <div id="modal-root" />
       </body>
     </html>
   );

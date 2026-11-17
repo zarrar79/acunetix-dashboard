@@ -15,6 +15,11 @@ type TunnelStatus = {
 
 type ModalMode = "start" | "stop" | null;
 
+function getModalRoot() {
+  if (typeof document === "undefined") return null;
+  return document.getElementById("modal-root") ?? document.body;
+}
+
 export function TunnelControl() {
   const [status, setStatus] = useState<TunnelStatus | null>(null);
   const [modal, setModal] = useState<ModalMode>(null);
@@ -117,6 +122,7 @@ export function TunnelControl() {
 
   const tunnelUp = status?.tunnelUp ?? false;
   const agentOnline = status?.agentOnline ?? false;
+  const portalTarget = mounted ? getModalRoot() : null;
 
   return (
     <>
@@ -156,18 +162,10 @@ export function TunnelControl() {
         </button>
       </div>
 
-      {mounted && modal
+      {portalTarget && modal
         ? createPortal(
             <div
-              className="tunnel-password-overlay flex items-center justify-center bg-black/65 px-4 backdrop-blur-md"
-              style={{
-                position: "fixed",
-                inset: 0,
-                zIndex: 2147483000,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+              className="tunnel-password-overlay"
               role="dialog"
               aria-modal="true"
               aria-labelledby="tunnel-modal-title"
@@ -178,12 +176,7 @@ export function TunnelControl() {
               <form
                 onSubmit={(event) => void onConfirm(event)}
                 onClick={(event) => event.stopPropagation()}
-                className="flex w-full max-w-sm flex-col items-center rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] px-6 py-8 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
-                style={{
-                  position: "relative",
-                  zIndex: 2147483001,
-                  margin: "auto",
-                }}
+                className="tunnel-password-dialog flex flex-col items-center rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] px-6 py-8 shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
               >
                 <div
                   className={`tunnel-blink mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 ${
@@ -264,7 +257,7 @@ export function TunnelControl() {
                 </div>
               </form>
             </div>,
-            document.body,
+            portalTarget,
           )
         : null}
     </>

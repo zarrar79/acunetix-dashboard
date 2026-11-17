@@ -967,16 +967,20 @@ function FindingDetailModal({
 
   if (!mounted) return null;
 
+  const portalTarget =
+    document.getElementById("modal-root") ?? document.body;
+
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/65 px-3 py-6 backdrop-blur-md sm:px-4"
+      className="tunnel-password-overlay px-3 py-6 sm:px-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="finding-detail-title"
       onClick={onClose}
     >
       <div
-        className="relative z-[201] flex max-h-[min(92vh,900px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        className="flex max-h-[min(92vh,900px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--panel-solid)] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        style={{ position: "relative", zIndex: 2147483001, margin: "auto" }}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-4 py-4 sm:px-5">
@@ -1076,7 +1080,7 @@ function FindingDetailModal({
         </div>
       </div>
     </div>,
-    document.body,
+    portalTarget,
   );
 }
 
