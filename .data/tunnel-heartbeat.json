@@ -1,7 +1,7 @@
 {
-  "tunnelUp": false,
-  "publicUrl": null,
-  "at": 1795020522964,
+  "tunnelUp": true,
+  "publicUrl": "https://restrictions-papers-ross-ent.trycloudflare.com",
+  "at": 1795020532708,
   "error": null,
-  "result": "Tunnel stopped. Public URL is offline until Start (new URL next time)."
+  "result": "Tunnel started: https://restrictions-papers-ross-ent.trycloudflare.com"
 }
